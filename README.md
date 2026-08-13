@@ -1,4 +1,4 @@
-# Enova AMP — Operations Hub
+# AMP — Operations Hub
 
 The primary employee dashboard and operational system for **Enova Science**. Runs against the
 live `enova-brain` Supabase project (550 projects, ~100 production orders, 23-gate order
