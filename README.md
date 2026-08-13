@@ -40,7 +40,7 @@ system.
   user; the anon role has no access. Schema lives in the
   `shopare_blank_schema` migration on the Supabase project.
 
-## Run it
+## Run it (local development)
 
 ```sh
 cp .env.example .env
@@ -49,3 +49,10 @@ npm run dev
 ```
 
 Sign in with an existing workspace account (Supabase auth).
+
+## Deploy it (self-hosted hub)
+
+The `deploy/` directory contains a complete Docker Compose stack that runs
+the whole system — Postgres, auth, data API, and the web app — on one
+machine (e.g. a Mac mini) with no cloud dependency. See
+[`deploy/README.md`](deploy/README.md) for the step-by-step guide.

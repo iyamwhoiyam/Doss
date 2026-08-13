@@ -1,0 +1,83 @@
+# Shopare self-hosted hub — one machine runs everything:
+#   db    Postgres (Supabase image: ships anon/authenticated roles + auth helpers)
+#   auth  GoTrue     — sign-in, serves /auth/v1/* (via the web proxy)
+#   rest  PostgREST  — data API, serves /rest/v1/* (via the web proxy)
+#   web   nginx      — the built app + reverse proxy, the only exposed port
+#
+# Configure via deploy/.env (generate it with ./gen-keys.sh — never commit it).
+# Start:  docker compose up -d --build     (from this deploy/ directory)
+
+name: shopare
+
+services:
+  db:
+    image: supabase/postgres:15.8.1.060
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: postgres
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXP: "3600"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./db-init/zz-01-roles.sh:/docker-entrypoint-initdb.d/zz-01-roles.sh:ro
+      - ../db/migrations/001_shopare_schema.sql:/docker-entrypoint-initdb.d/zz-02-shopare.sql:ro
+    ports:
+      # Loopback-only: lets you run psql / pg_dump on the Mac mini itself.
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h localhost -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  auth:
+    image: supabase/gotrue:v2.170.0
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: "9999"
+      API_EXTERNAL_URL: ${SITE_URL}
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${POSTGRES_PASSWORD}@db:5432/postgres
+      GOTRUE_SITE_URL: ${SITE_URL}
+      GOTRUE_DISABLE_SIGNUP: "true"          # accounts are created by an admin only
+      GOTRUE_JWT_SECRET: ${JWT_SECRET}
+      GOTRUE_JWT_EXP: "3600"
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      GOTRUE_MAILER_AUTOCONFIRM: "true"      # no SMTP on the hub; users are pre-confirmed
+
+  rest:
+    image: postgrest/postgrest:v12.2.3
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGRST_DB_URI: postgres://authenticator:${POSTGRES_PASSWORD}@db:5432/postgres
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - auth
+      - rest
+    environment:
+      ANON_KEY: ${ANON_KEY}
+    ports:
+      - "${WEB_PORT:-8080}:80"
+
+volumes:
+  db-data:
