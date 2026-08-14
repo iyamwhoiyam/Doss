@@ -1654,12 +1654,33 @@ document.getElementById("copyCsvBtn").addEventListener("click", async (e) => {
   e.target.textContent = "Copied ✓";
   setTimeout(() => { e.target.textContent = "Copy to clipboard"; }, 1600);
 });
-document.getElementById("downloadCsvBtn").addEventListener("click", () => {
-  /* may be blocked in sandboxed viewers — the copy button is the fallback */
-  const blob = new Blob([document.getElementById("exportText").value], { type: "text/csv" });
+document.getElementById("downloadCsvBtn").addEventListener("click", async (e) => {
+  const btn = e.target;
+  const text = document.getElementById("exportText").value;
+  const fname = "onboarding-" + iso(TODAY) + ".csv";
+  const note = (msg) => { btn.textContent = msg; setTimeout(() => { btn.textContent = "Download .csv"; }, 2200); };
+
+  /* in the claude.ai viewer, saves go through the downloads capability */
+  const dl = (window.claude && window.claude.use) ? await window.claude.use("downloads").catch(() => null) : null;
+  if (dl) {
+    try { await dl.save({ filename: fname, data: text }); note("Saved ✓"); }
+    catch (err) {
+      if (err && err.code === "extension_not_enabled") {
+        try { await dl.save({ filename: fname.replace(/\.csv$/, ".txt"), data: text }); note("Saved as .txt ✓"); return; }
+        catch (err2) { err = err2; }
+      }
+      if (err && err.code === "declined") return;
+      if (err && err.code === "rate_limited") { note("Try again in a moment"); return; }
+      note("Use “Copy to clipboard”");
+    }
+    return;
+  }
+
+  /* plain browser: ordinary anchor download */
+  const blob = new Blob([text], { type: "text/csv" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = "onboarding-" + iso(TODAY) + ".csv";
+  a.download = fname;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 });
