@@ -203,6 +203,18 @@
   table.data td.num, table.data th.num { text-align: right; font-variant-numeric: tabular-nums; }
   .empty-note { color: var(--muted); font-size: 13px; padding: 18px 4px; }
 
+  /* ---------- chips & meters (new-hire roster) ---------- */
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600;
+    padding: 3px 9px 3px 7px; border-radius: 999px; border: 1px solid var(--border); white-space: nowrap;
+  }
+  .chip .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .meter { display: flex; align-items: center; gap: 8px; min-width: 120px; }
+  .meter .track { flex: 1; height: 6px; border-radius: 3px; background: var(--accent-soft); overflow: hidden; }
+  .meter .fill { height: 100%; border-radius: 3px; background: var(--accent); }
+  .meter .pct { font-size: 12px; color: var(--ink-2); font-variant-numeric: tabular-nums; width: 34px; text-align: right; }
+  .viewseg button { font-size: 13.5px; padding: 8px 14px; }
+
   /* ---------- attention lists ---------- */
   .attn { display: flex; flex-direction: column; }
   .attn-item { display: flex; gap: 10px; padding: 9px 2px; border-bottom: 1px solid var(--grid); align-items: baseline; }
@@ -347,6 +359,21 @@
     </div>
   </div>
 
+  <div class="filters" role="group" aria-label="View">
+    <div class="seg viewseg" id="viewSeg" role="group" aria-label="Tracker view">
+      <button data-view="new" aria-pressed="true">New Hire Tracker</button>
+      <button data-view="all" aria-pressed="false">Full Compliance</button>
+    </div>
+    <span class="label" id="nhWindowLab">Hired within</span>
+    <select id="nhWindow" aria-label="New hire window">
+      <option value="30">Last 30 days</option>
+      <option value="60">Last 60 days</option>
+      <option value="90" selected>Last 90 days</option>
+      <option value="180">Last 180 days</option>
+      <option value="365">Last 365 days</option>
+    </select>
+  </div>
+
   <div class="filters" role="group" aria-label="Dashboard filters" id="filterRow">
     <div class="seg" id="commSeg" role="group" aria-label="Community"></div>
     <span class="label">Department</span>
@@ -364,6 +391,47 @@
     <input type="search" id="nameSearch" placeholder="Search name…" aria-label="Search employee name" style="min-width:170px" />
   </div>
 
+  <div id="viewNew">
+    <section class="kpis" id="nhKpiRow" aria-label="New hire metrics"></section>
+
+    <div class="grid2">
+      <section class="card" data-chart="nhgaps">
+        <div class="card-head">
+          <div><h2>Outstanding items for this cohort</h2><p class="sub">What new hires are still missing, most common first</p></div>
+          <div class="viewtoggle" role="group" aria-label="View as">
+            <button data-view="chart" aria-pressed="true">Chart</button><button data-view="table" aria-pressed="false">Table</button>
+          </div>
+        </div>
+        <div class="legend" aria-hidden="true">
+          <span class="key"><span class="swatch" style="background:var(--critical)"></span>Missing</span>
+          <span class="key"><span class="swatch" style="background:var(--serious)"></span>Expired</span>
+          <span class="key"><span class="swatch" style="background:var(--warning)"></span>Expiring ≤60d</span>
+        </div>
+        <div class="chartbox"></div>
+        <div class="tablebox" hidden></div>
+      </section>
+
+      <section class="card" data-chart="nhhires">
+        <div class="card-head">
+          <div><h2>New hire starts by month</h2><p class="sub">Last 6 months, by hire date</p></div>
+          <div class="viewtoggle" role="group" aria-label="View as">
+            <button data-view="chart" aria-pressed="true">Chart</button><button data-view="table" aria-pressed="false">Table</button>
+          </div>
+        </div>
+        <div class="chartbox"></div>
+        <div class="tablebox" hidden></div>
+      </section>
+    </div>
+
+    <section class="card">
+      <div class="card-head">
+        <div><h2>New hire onboarding roster</h2><p class="sub" id="nhRosterSub"></p></div>
+      </div>
+      <div class="tablebox" id="nhRosterBox"></div>
+    </section>
+  </div>
+
+  <div id="viewAll" hidden>
   <section class="kpis" id="kpiRow" aria-label="Key metrics"></section>
 
   <div class="grid2">
@@ -457,6 +525,7 @@
     </div>
     <div class="gridbox" id="gridBox" tabindex="0" aria-label="Compliance grid, one row per employee. Click a name to edit."></div>
   </section>
+  </div>
 
   <footer class="foot">
     <span>American House SWFL cluster · HR compliance</span>
@@ -794,7 +863,7 @@ function recompute() {
 
 /* ================= filters ================= */
 
-const state = { comm: "all", dept: "all", status: "all", search: "", sort: "name" };
+const state = { view: "new", nhDays: 90, comm: "all", dept: "all", status: "all", search: "", sort: "name" };
 
 function filtered() {
   const q = state.search.trim().toLowerCase();
@@ -1018,9 +1087,11 @@ function renderByComm() {
 
 /* ================= chart: gaps by requirement ================= */
 
-function renderByItem() {
-  const box = cards.byitem.chartbox;
-  const list = filtered();
+function renderByItem() { renderGapsInto("byitem", filtered()); }
+
+function renderGapsInto(cardId, list, topN = 12) {
+  const card = cards[cardId];
+  const box = card.chartbox;
   const rows = ITEMS.map(it => {
     let missing = 0, expired = 0, expiring = 0, ok = 0;
     for (const v of list) {
@@ -1033,12 +1104,12 @@ function renderByItem() {
     return { it, missing, expired, expiring, ok, total: missing + expired + expiring };
   }).filter(r => r.total > 0).sort((a, b) => b.total - a.total);
 
-  fillTable(cards.byitem.tablebox, ["Requirement", "Missing", "Expired", "Expiring ≤60d", "OK"],
+  fillTable(card.tablebox, ["Requirement", "Missing", "Expired", "Expiring ≤60d", "OK"],
     rows.map(r => [r.it.label, fmtInt(r.missing), fmtInt(r.expired), fmtInt(r.expiring), fmtInt(r.ok)]), [1, 2, 3, 4]);
 
   if (!rows.length) { chartEmpty(box, "No gaps — every tracked item is complete and current."); return; }
 
-  const top = rows.slice(0, 12);
+  const top = rows.slice(0, topN);
   const maxT = Math.max(...top.map(r => r.total));
   const W = Math.max(box.clientWidth || 480, 300);
   const rowH = 28, m = { top: 4, right: 46, bottom: 4, left: Math.min(216, Math.floor(W * 0.42)) };
@@ -1131,17 +1202,20 @@ function renderExpMonth() {
 
 /* ================= chart: new hires by month ================= */
 
-function renderHires() {
-  const box = cards.hires.chartbox;
+function renderHires() { renderHiresInto("hires", 12); }
+
+function renderHiresInto(cardId, nMonths) {
+  const card = cards[cardId];
+  const box = card.chartbox;
   const list = filtered();
   const months = [];
-  for (let i = 11; i >= 0; i--) months.push(new Date(TODAY.getFullYear(), TODAY.getMonth() - i, 1));
+  for (let i = nMonths - 1; i >= 0; i--) months.push(new Date(TODAY.getFullYear(), TODAY.getMonth() - i, 1));
   const counts = months.map(mo => list.filter(v => v.s.hire && sameMonth(v.s.hire, mo)).length);
 
-  fillTable(cards.hires.tablebox, ["Month", "New hires"],
+  fillTable(card.tablebox, ["Month", "New hires"],
     months.map((mo, i) => [fmtMonthYr(mo), fmtInt(counts[i])]), [1]);
 
-  if (!counts.some(c => c > 0)) { chartEmpty(box, "No hires in the last 12 months in this slice."); return; }
+  if (!counts.some(c => c > 0)) { chartEmpty(box, "No hires in the last " + nMonths + " months in this slice."); return; }
 
   const W = Math.max(box.clientWidth || 480, 300), H = 230;
   const m = { top: 14, right: 12, bottom: 26, left: 34 };
@@ -1174,6 +1248,151 @@ function renderHires() {
     svg.appendChild(hit);
   });
   box.replaceChildren(svg);
+}
+
+/* ================= new hire tracker ================= */
+
+function newHireList() {
+  const cutoff = new Date(TODAY.getTime() - state.nhDays * DAY);
+  return filtered().filter(v => v.s.hire && v.s.hire >= cutoff);
+}
+
+/* per-new-hire rollup: progress across every item that applies to them */
+function nhAgg(v) {
+  let done = 0, req = 0, docsDone = 0, docsReq = 0, missing = 0, expired = 0;
+  for (const it of ITEMS) {
+    const st = v.s.statuses[it.key].st;
+    if (st === "na" || st === "untracked") continue;
+    req++;
+    const isDone = st === "ok" || st === "info" || st === "expiring";
+    if (isDone) done++;
+    if (st === "missing") missing++;
+    if (st === "expired") expired++;
+    if (it.group === "docs") { docsReq++; if (isDone) docsDone++; }
+  }
+  const daysIn = Math.floor((TODAY - v.s.hire) / DAY);
+  const progress = req ? done / req : 0;
+  let status;
+  if (daysIn < 0) status = "prestart";
+  else if (done === 0) status = "noactivity";
+  else if (missing === 0 && expired === 0) status = "complete";
+  else if (progress + 0.15 < Math.min(Math.max(daysIn, 1), 90) / 90) status = "behind";
+  else status = "ontrack";
+  return { done, req, docsDone, docsReq, missing, expired, daysIn, progress, status };
+}
+
+const NH_STATUS = {
+  noactivity: { label: "No activity", color: "var(--critical)", rank: 0 },
+  behind:     { label: "Behind",      color: "var(--warning)",  rank: 1 },
+  ontrack:    { label: "On track",    color: "var(--good)",     rank: 2 },
+  prestart:   { label: "Starts soon", color: "var(--baseline)", rank: 3 },
+  complete:   { label: "Complete",    color: "var(--good)",     rank: 4 },
+};
+
+function renderNhKpis(cohort) {
+  const row = document.getElementById("nhKpiRow");
+  row.replaceChildren();
+  const aggs = cohort.map(c => c.agg);
+  const complete = aggs.filter(a => a.status === "complete").length;
+  const noact = aggs.filter(a => a.status === "noactivity").length;
+  const behind = aggs.filter(a => a.status === "behind").length;
+  const outstanding = aggs.reduce((t, a) => t + a.missing + a.expired, 0);
+  const avg = aggs.length ? aggs.reduce((t, a) => t + a.progress, 0) / aggs.length : null;
+  const mk = (label, value, note, cls) => {
+    const tile = document.createElement("div"); tile.className = "tile" + (cls ? " " + cls : "");
+    const l = document.createElement("div"); l.className = "t-label"; l.textContent = label;
+    const v = document.createElement("div"); v.className = "t-value"; v.textContent = value;
+    tile.appendChild(l); tile.appendChild(v);
+    if (note) { const n = document.createElement("div"); n.className = "t-note"; n.textContent = note; tile.appendChild(n); }
+    row.appendChild(tile);
+  };
+  const scope = state.comm === "all" ? "5 communities" : state.comm;
+  mk("New hires", fmtInt(cohort.length), "last " + state.nhDays + " days · " + scope);
+  mk("Avg checklist progress", avg === null ? "—" : pct(avg), "across items that apply to each hire");
+  mk("Onboarding complete", fmtInt(complete), cohort.length ? pct(complete / cohort.length) + " of cohort" : "");
+  mk("Behind schedule", fmtInt(behind), "progress trailing days-in-seat", behind ? "warn" : "");
+  mk("No activity yet", fmtInt(noact), "no documents or classes on file", noact ? "alert" : "");
+  return outstanding;
+}
+
+function renderNhRoster(cohort) {
+  const box = document.getElementById("nhRosterBox");
+  document.getElementById("nhRosterSub").textContent =
+    fmtInt(cohort.length) + (cohort.length === 1 ? " new hire" : " new hires") +
+    " hired in the last " + state.nhDays + " days · click a name to open and edit their record";
+  box.replaceChildren();
+  if (!cohort.length) {
+    const p = document.createElement("p"); p.className = "empty-note";
+    p.textContent = "No hires in the last " + state.nhDays + " days match the current filters.";
+    box.appendChild(p); return;
+  }
+  const list = cohort.slice().sort((a, b) =>
+    NH_STATUS[a.agg.status].rank - NH_STATUS[b.agg.status].rank ||
+    b.v.s.hire - a.v.s.hire || a.v.e.name.localeCompare(b.v.e.name));
+
+  const table = document.createElement("table"); table.className = "data";
+  const thead = document.createElement("thead"); const trh = document.createElement("tr");
+  ["Employee Name + Number", "Community", "Department-Position", "Hire Date", "Day",
+   "Documents", "Checklist progress", "Outstanding", "Status"].forEach((hd, i) => {
+    const th = document.createElement("th"); th.textContent = hd;
+    if (i === 4 || i === 7) th.className = "num";
+    trh.appendChild(th);
+  });
+  thead.appendChild(trh); table.appendChild(thead);
+  const tbody = document.createElement("tbody");
+  for (const { v, agg } of list) {
+    const tr = document.createElement("tr");
+    const tdName = document.createElement("td");
+    const btn = document.createElement("button"); btn.type = "button"; btn.textContent = v.e.name;
+    btn.style.cssText = "appearance:none;border:0;background:transparent;color:var(--ink);font:600 13px system-ui,sans-serif;cursor:pointer;padding:0;text-align:left";
+    btn.addEventListener("click", () => openEditor(v.e.id));
+    btn.addEventListener("mouseenter", () => { btn.style.color = "var(--accent)"; btn.style.textDecoration = "underline"; });
+    btn.addEventListener("mouseleave", () => { btn.style.color = "var(--ink)"; btn.style.textDecoration = "none"; });
+    if (v.e.note) btn.title = v.e.note;
+    tdName.appendChild(btn); tr.appendChild(tdName);
+    for (const c of [v.e.community, v.e.dept || "—", v.s.hire ? fmtDate(v.s.hire) : "—"]) {
+      const td = document.createElement("td"); td.textContent = c; tr.appendChild(td);
+    }
+    const tdDay = document.createElement("td"); tdDay.className = "num";
+    tdDay.textContent = agg.daysIn < 0 ? "in " + (-agg.daysIn) + "d" : fmtInt(agg.daysIn);
+    tr.appendChild(tdDay);
+    const tdDocs = document.createElement("td");
+    tdDocs.textContent = agg.docsDone + " / " + agg.docsReq;
+    tdDocs.style.fontVariantNumeric = "tabular-nums";
+    if (agg.docsDone < agg.docsReq) tdDocs.style.color = "var(--critical)";
+    tr.appendChild(tdDocs);
+    const tdMeter = document.createElement("td");
+    const meter = document.createElement("div"); meter.className = "meter";
+    const track = document.createElement("div"); track.className = "track";
+    const fill = document.createElement("div"); fill.className = "fill"; fill.style.width = Math.round(agg.progress * 100) + "%";
+    track.appendChild(fill);
+    const pctEl = document.createElement("span"); pctEl.className = "pct"; pctEl.textContent = Math.round(agg.progress * 100) + "%";
+    meter.appendChild(track); meter.appendChild(pctEl);
+    meter.setAttribute("aria-label", agg.done + " of " + agg.req + " applicable items complete");
+    tdMeter.appendChild(meter); tr.appendChild(tdMeter);
+    const tdOut = document.createElement("td"); tdOut.className = "num";
+    tdOut.textContent = fmtInt(agg.missing + agg.expired);
+    if (agg.missing + agg.expired > 0) tdOut.style.color = "var(--critical)";
+    tr.appendChild(tdOut);
+    const tdStatus = document.createElement("td");
+    const meta = NH_STATUS[agg.status];
+    const chip = document.createElement("span"); chip.className = "chip";
+    const dot = document.createElement("span"); dot.className = "dot"; dot.style.background = meta.color;
+    chip.appendChild(dot); chip.append(meta.label);
+    tdStatus.appendChild(chip); tr.appendChild(tdStatus);
+    tr.style.cursor = "pointer";
+    tr.addEventListener("click", (e) => { if (!e.target.closest("button")) openEditor(v.e.id); });
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody); box.appendChild(table);
+}
+
+function renderNewView() {
+  const cohort = newHireList().map(v => ({ v, agg: nhAgg(v) }));
+  renderNhKpis(cohort);
+  renderGapsInto("nhgaps", cohort.map(c => c.v), 10);
+  renderHiresInto("nhhires", 6);
+  renderNhRoster(cohort);
 }
 
 /* ================= attention lists ================= */
@@ -1758,20 +1977,58 @@ document.getElementById("nameSearch").addEventListener("input", (e) => {
 
 function renderAll() {
   document.getElementById("emptyHero").hidden = employees.length > 0;
-  renderKPIs();
-  renderByComm();
-  renderByItem();
-  renderExpMonth();
-  renderHires();
-  renderLists();
-  renderGrid();
+  const isNew = state.view === "new";
+  document.getElementById("viewNew").hidden = !isNew;
+  document.getElementById("viewAll").hidden = isNew;
+  document.getElementById("nhWindow").hidden = !isNew;
+  document.getElementById("nhWindowLab").hidden = !isNew;
+  document.getElementById("statusFilter").hidden = isNew;
+  if (isNew) {
+    renderNewView();
+  } else {
+    renderKPIs();
+    renderByComm();
+    renderByItem();
+    renderExpMonth();
+    renderHires();
+    renderLists();
+    renderGrid();
+  }
 }
 function refresh() { recompute(); rebuildDeptFilter(); renderAll(); }
+
+document.getElementById("viewSeg").addEventListener("click", (e) => {
+  const btn = e.target.closest("button"); if (!btn) return;
+  for (const b of document.querySelectorAll("#viewSeg button")) b.setAttribute("aria-pressed", b === btn ? "true" : "false");
+  state.view = btn.dataset.view;
+  renderAll();
+});
+document.getElementById("nhWindow").addEventListener("change", (e) => {
+  state.nhDays = Number(e.target.value);
+  renderAll();
+});
+/* pick the smallest window that actually contains hires, so the tracker
+   never opens onto an empty cohort while data exists */
+(function initNhWindow() {
+  const dates = employees.map(e => parseAnyDate(e.hire)).filter(Boolean);
+  if (!dates.length) return;
+  for (const w of [30, 60, 90, 180, 365]) {
+    const cutoff = new Date(TODAY.getTime() - w * DAY);
+    if (dates.some(d => d >= cutoff)) {
+      state.nhDays = w;
+      document.getElementById("nhWindow").value = String(w);
+      return;
+    }
+  }
+})();
 
 let resizeT;
 window.addEventListener("resize", () => {
   clearTimeout(resizeT);
-  resizeT = setTimeout(() => { renderByComm(); renderByItem(); renderExpMonth(); renderHires(); }, 120);
+  resizeT = setTimeout(() => {
+    if (state.view === "new") renderNewView();
+    else { renderByComm(); renderByItem(); renderExpMonth(); renderHires(); }
+  }, 120);
 });
 
 flagStorage();
