@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Willow Grove Onboarding</title>
+<title>Senior Living HR Onboarding</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232e5d4b'/%3E%3Cpath d='M16 25c0-8 2-13 9-16-1 8-3 13-9 16zm0 0c0-6-1.5-10-7-12 .8 6 2.5 10 7 12z' fill='%23e9f3ee'/%3E%3C/svg%3E" />
 <style>
   :root {
@@ -17,7 +17,7 @@
     --baseline: #c3c2b7;
     --border: rgba(11, 11, 11, 0.10);
     --brand: #2e5d4b;
-    --brand-soft: #e7efe9;
+    --brand-ink: #f4faf7;
     --accent: #2a78d6;          /* categorical slot 1, light */
     --accent-soft: #cde2fb;     /* meter track / area wash base */
     --ord-1: #86b6ef;           /* validated ordinal ramp, light */
@@ -45,7 +45,7 @@
       --baseline: #383835;
       --border: rgba(255, 255, 255, 0.10);
       --brand: #6cb497;
-      --brand-soft: #1f2d27;
+      --brand-ink: #0d1a14;
       --accent: #3987e5;
       --accent-soft: #16365e;
       --ord-1: #184f95;
@@ -70,7 +70,7 @@
     --baseline: #383835;
     --border: rgba(255, 255, 255, 0.10);
     --brand: #6cb497;
-    --brand-soft: #1f2d27;
+    --brand-ink: #0d1a14;
     --accent: #3987e5;
     --accent-soft: #16365e;
     --ord-1: #184f95;
@@ -105,8 +105,22 @@
     text-transform: uppercase; color: var(--brand);
   }
   h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.015em; margin: 2px 0 0; text-wrap: balance; }
-  .asof { color: var(--muted); font-size: 13px; text-align: right; }
+  .headside { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .asof { color: var(--muted); font-size: 13px; margin-right: 8px; }
   .asof strong { color: var(--ink-2); font-weight: 600; }
+
+  /* ---------- buttons ---------- */
+  .btn {
+    appearance: none; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--surface); color: var(--ink); cursor: pointer;
+    font: 600 13px/1 system-ui, sans-serif; padding: 9px 14px;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .btn:hover { background: var(--page); }
+  .btn-primary { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
+  .btn-primary:hover { background: var(--brand); filter: brightness(1.08); }
+  .btn-danger { color: var(--critical); }
+  .btn-sm { padding: 5px 10px; font-size: 12px; border-radius: 6px; }
 
   /* ---------- filter row ---------- */
   .filters {
@@ -123,18 +137,26 @@
     cursor: pointer;
   }
   .seg button:hover { background: var(--page); }
-  .seg button[aria-pressed="true"] { background: var(--brand); color: #f4faf7; }
-  select#deptFilter {
-    appearance: none; background: var(--surface); color: var(--ink);
-    border: 1px solid var(--border); border-radius: 8px; padding: 9px 32px 9px 12px;
-    font: 600 13px/1 system-ui, sans-serif; cursor: pointer;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23898781' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
-    background-repeat: no-repeat; background-position: right 12px center;
+  .seg button[aria-pressed="true"] { background: var(--brand); color: var(--brand-ink); }
+  select, input[type="text"], input[type="date"], textarea {
+    background: var(--surface); color: var(--ink);
+    border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px;
+    font: 500 13px/1.4 system-ui, sans-serif;
   }
+  select { cursor: pointer; }
   .filters .label { font-size: 12px; color: var(--muted); font-weight: 600; letter-spacing: 0.02em; }
-  button:focus-visible, select:focus-visible, [tabindex]:focus-visible, a:focus-visible {
-    outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px;
+  button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:focus-visible, a:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
   }
+
+  /* ---------- empty state ---------- */
+  .empty-hero {
+    background: var(--surface); border: 1px dashed var(--baseline); border-radius: 12px;
+    padding: 40px 24px; text-align: center; margin-bottom: 16px;
+  }
+  .empty-hero h2 { font-size: 18px; margin: 0 0 6px; }
+  .empty-hero p { color: var(--ink-2); margin: 0 auto 18px; max-width: 52ch; }
+  .empty-hero .actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 
   /* ---------- KPI tiles ---------- */
   .kpis {
@@ -201,6 +223,8 @@
   .chip-ontrack .dot { background: var(--good); }
   .chip-atrisk .dot { background: var(--warning); }
   .chip-overdue .dot { background: var(--critical); }
+  .chip-done .dot { background: var(--good); }
+  .chip-separated .dot { background: var(--baseline); }
   .meter { display: flex; align-items: center; gap: 8px; min-width: 130px; }
   .meter .track { flex: 1; height: 6px; border-radius: 3px; background: var(--accent-soft); overflow: hidden; }
   .meter .fill { height: 100%; border-radius: 3px; background: var(--accent); }
@@ -227,10 +251,52 @@
   .tip .tt-val { font-weight: 700; font-variant-numeric: tabular-nums; }
   .tip .tt-name { color: var(--ink-2); }
 
+  /* ---------- dialogs ---------- */
+  dialog {
+    background: var(--surface); color: var(--ink);
+    border: 1px solid var(--border); border-radius: 12px; padding: 0;
+    width: min(600px, calc(100vw - 32px)); box-shadow: 0 12px 48px rgba(0,0,0,0.25);
+  }
+  dialog::backdrop { background: rgba(10, 10, 8, 0.45); }
+  .dlg-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px 12px; border-bottom: 1px solid var(--grid); }
+  .dlg-head h2 { font-size: 16px; margin: 0; }
+  .dlg-body { padding: 16px 20px; max-height: min(62vh, 560px); overflow-y: auto; }
+  .dlg-foot { display: flex; align-items: center; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--grid); }
+  .dlg-foot .spacer { flex: 1; }
+  .x-close { appearance: none; border: 0; background: transparent; color: var(--muted); font-size: 18px; cursor: pointer; padding: 2px 6px; border-radius: 6px; }
+  .x-close:hover { color: var(--ink); background: var(--page); }
+  .formgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .formgrid .full { grid-column: 1 / -1; }
+  @media (max-width: 560px) { .formgrid { grid-template-columns: 1fr; } }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 12px; font-weight: 600; color: var(--ink-2); }
+  .field .hint { font-size: 11px; color: var(--muted); }
+  .checklist { margin-top: 16px; border-top: 1px solid var(--grid); padding-top: 10px; }
+  .checklist h3 { font-size: 13px; margin: 0 0 4px; }
+  .checklist .cl-hint { font-size: 12px; color: var(--muted); margin: 0 0 8px; }
+  .cl-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--grid); }
+  .cl-row:last-child { border-bottom: 0; }
+  .cl-row label.cl-label { flex: 1; display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+  .cl-row input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--brand); cursor: pointer; }
+  .cl-row .due { font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .cl-row input[type="date"] { padding: 5px 8px; font-size: 12px; }
+  .err { color: var(--critical); font-size: 12px; font-weight: 600; }
+  .report { font-size: 12px; margin-top: 10px; }
+  .report .ok { color: var(--good-text); font-weight: 600; }
+  .report ul { margin: 6px 0 0; padding-left: 18px; color: var(--critical); }
+  textarea.csv { width: 100%; min-height: 130px; font: 12px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace; resize: vertical; }
+  .radio-row { display: flex; gap: 16px; align-items: center; font-size: 13px; }
+  .radio-row label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+  .radio-row input { accent-color: var(--brand); }
+  .helpcols { font-size: 12px; color: var(--ink-2); }
+  .helpcols code { background: var(--page); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; font-size: 11px; }
+  .rowlink { appearance: none; border: 0; background: transparent; color: var(--accent); font: 600 12px system-ui, sans-serif; cursor: pointer; padding: 2px 4px; border-radius: 4px; }
+  .rowlink:hover { text-decoration: underline; }
+
   footer.foot { margin-top: 26px; color: var(--muted); font-size: 12px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 
   @media (prefers-reduced-motion: no-preference) {
-    .seg button, .viewtoggle button, .chartbox rect, .chartbox path { transition: opacity .12s ease, background-color .12s ease; }
+    .seg button, .viewtoggle button, .btn, .chartbox rect, .chartbox path { transition: opacity .12s ease, background-color .12s ease; }
   }
 </style>
 </head>
@@ -244,19 +310,35 @@
         <path d="M16 25c0-8 2-13 9-16-1 8-3 13-9 16zm0 0c0-6-1.5-10-7-12 .8 6 2.5 10 7 12z" fill="#eef6f1"></path>
       </svg>
       <div>
-        <div class="eyebrow">Willow Grove Senior Living · Human Resources</div>
+        <div class="eyebrow">Senior Living Community · Human Resources</div>
         <h1>New-Hire Onboarding</h1>
       </div>
     </div>
-    <div class="asof">As of <strong id="asofDate"></strong><br />Sample data for demonstration</div>
+    <div class="headside">
+      <span class="asof">As of <strong id="asofDate"></strong></span>
+      <button class="btn btn-primary" id="addHireBtn">＋ Add hire</button>
+      <button class="btn" id="importBtn">Import CSV</button>
+      <button class="btn" id="exportBtn">Export CSV</button>
+    </div>
   </header>
 
-  <div class="filters" role="group" aria-label="Dashboard filters">
+  <div class="empty-hero" id="emptyHero" hidden>
+    <h2>No onboarding data yet</h2>
+    <p>Add your first hire manually, or import your team from a CSV file.
+       Everything you enter is stored locally in this browser — nothing is sent anywhere.</p>
+    <div class="actions">
+      <button class="btn btn-primary" id="emptyAddBtn">＋ Add a hire</button>
+      <button class="btn" id="emptyImportBtn">Import from CSV</button>
+    </div>
+  </div>
+
+  <div class="filters" role="group" aria-label="Dashboard filters" id="filterRow">
     <span class="label">Hired in</span>
     <div class="seg" id="rangeSeg" role="group" aria-label="Date range">
       <button data-months="3">Last 3 months</button>
       <button data-months="6" aria-pressed="true">Last 6 months</button>
       <button data-months="12">Last 12 months</button>
+      <button data-months="all">All time</button>
     </div>
     <span class="label">Department</span>
     <select id="deptFilter" aria-label="Department filter">
@@ -329,7 +411,7 @@
 
     <section class="card">
       <div class="card-head">
-        <div><h2>Orientation &amp; reviews this week</h2><p class="sub">Scheduled onboarding events</p></div>
+        <div><h2>Coming due in the next 7 days</h2><p class="sub">Checklist items approaching their deadline</p></div>
       </div>
       <div class="attn" id="weekList"></div>
     </section>
@@ -343,46 +425,128 @@
   </section>
 
   <footer class="foot">
-    <span>Willow Grove Senior Living · HR operations</span>
-    <span>All figures reflect the filters above · deterministic sample dataset</span>
+    <span>HR onboarding tracker · data stays in this browser (local storage)</span>
+    <span id="storageNote">Export a CSV regularly as your backup.</span>
   </footer>
 </div>
 
 <div class="tip" id="tip" role="status" aria-hidden="true"></div>
 
+<!-- ---------- add / edit hire ---------- -->
+<dialog id="editDlg" aria-labelledby="editTitle">
+  <form method="dialog" id="editForm">
+    <div class="dlg-head">
+      <h2 id="editTitle">Add hire</h2>
+      <button type="button" class="x-close" data-close aria-label="Close">✕</button>
+    </div>
+    <div class="dlg-body">
+      <div class="formgrid">
+        <div class="field full">
+          <label for="f-name">Full name</label>
+          <input type="text" id="f-name" autocomplete="off" required />
+        </div>
+        <div class="field">
+          <label for="f-role">Role / job title</label>
+          <input type="text" id="f-role" autocomplete="off" placeholder="e.g. CNA, Cook, Housekeeper" />
+        </div>
+        <div class="field">
+          <label for="f-dept">Department</label>
+          <select id="f-dept"></select>
+        </div>
+        <div class="field">
+          <label for="f-start">Start date</label>
+          <input type="date" id="f-start" required />
+        </div>
+        <div class="field">
+          <label for="f-sep">Separation date <span class="hint">(if no longer employed)</span></label>
+          <input type="date" id="f-sep" />
+        </div>
+      </div>
+      <div class="checklist">
+        <h3>Onboarding checklist</h3>
+        <p class="cl-hint">Check an item off and record its completion date. Items shown depend on the department.</p>
+        <div id="clRows"></div>
+      </div>
+      <p class="err" id="editErr" hidden></p>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" class="btn btn-danger btn-sm" id="deleteHireBtn" hidden>Delete hire</button>
+      <span class="spacer"></span>
+      <button type="button" class="btn" data-close>Cancel</button>
+      <button type="submit" class="btn btn-primary" id="saveHireBtn">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ---------- import ---------- -->
+<dialog id="importDlg" aria-labelledby="importTitle">
+  <div class="dlg-head">
+    <h2 id="importTitle">Import hires from CSV</h2>
+    <button type="button" class="x-close" data-close aria-label="Close">✕</button>
+  </div>
+  <div class="dlg-body">
+    <div class="field">
+      <label for="csvFile">Choose a .csv file</label>
+      <input type="file" id="csvFile" accept=".csv,text/csv" />
+    </div>
+    <div class="field" style="margin-top:12px">
+      <label for="csvText">…or paste CSV text</label>
+      <textarea id="csvText" class="csv" spellcheck="false" placeholder="name,role,department,start_date,..."></textarea>
+    </div>
+    <div class="radio-row" style="margin-top:12px">
+      <label><input type="radio" name="importMode" value="append" checked /> Add to existing data</label>
+      <label><input type="radio" name="importMode" value="replace" /> Replace all existing data</label>
+    </div>
+    <details style="margin-top:14px">
+      <summary style="cursor:pointer;font-weight:600;font-size:13px">CSV format</summary>
+      <div class="helpcols" id="csvHelp" style="margin-top:8px"></div>
+    </details>
+    <div class="report" id="importReport"></div>
+  </div>
+  <div class="dlg-foot">
+    <button type="button" class="btn btn-sm" id="copyTemplateBtn">Copy header template</button>
+    <button type="button" class="btn btn-danger btn-sm" id="eraseAllBtn">Erase all data…</button>
+    <span class="spacer"></span>
+    <button type="button" class="btn" data-close>Close</button>
+    <button type="button" class="btn btn-primary" id="runImportBtn">Import</button>
+  </div>
+</dialog>
+
+<!-- ---------- export ---------- -->
+<dialog id="exportDlg" aria-labelledby="exportTitle">
+  <div class="dlg-head">
+    <h2 id="exportTitle">Export CSV</h2>
+    <button type="button" class="x-close" data-close aria-label="Close">✕</button>
+  </div>
+  <div class="dlg-body">
+    <p class="cl-hint" style="margin-top:0">All hires (every department, all dates), one row each. Completion dates are ISO format. Re-importing this file restores the data exactly.</p>
+    <textarea id="exportText" class="csv" spellcheck="false" readonly></textarea>
+  </div>
+  <div class="dlg-foot">
+    <span class="spacer"></span>
+    <button type="button" class="btn" data-close>Close</button>
+    <button type="button" class="btn" id="downloadCsvBtn">Download .csv</button>
+    <button type="button" class="btn btn-primary" id="copyCsvBtn">Copy to clipboard</button>
+  </div>
+</dialog>
+
 <script>
 "use strict";
 
-/* ---------------- deterministic sample data ---------------- */
-
-function mulberry32(a) {
-  return function () {
-    a |= 0; a = (a + 0x6D2B79F5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-const rnd = mulberry32(20260814);
-
-const TODAY = new Date(); TODAY.setHours(0, 0, 0, 0);
-const DAY = 86400000;
-const daysAgoDate = (n) => new Date(TODAY.getTime() - n * DAY);
-const fmtMonth = (d) => d.toLocaleDateString("en-US", { month: "short" });
-const fmtMonthYr = (d) => d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
-const fmtDate = (d) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+/* ================= reference data (no records — just the schema) ================= */
 
 const DEPTS = [
-  { id: "nursing",      name: "Nursing & Care",        roles: ["CNA", "LPN", "RN", "Med Tech"], w: 0.40 },
-  { id: "dining",       name: "Culinary & Dining",     roles: ["Cook", "Dining Server", "Dietary Aide"], w: 0.20 },
-  { id: "housekeeping", name: "Housekeeping & Laundry",roles: ["Housekeeper", "Laundry Aide"], w: 0.13 },
-  { id: "life",         name: "Life Enrichment",       roles: ["Activities Coordinator", "Community Driver"], w: 0.09 },
-  { id: "maintenance",  name: "Maintenance & Grounds", roles: ["Maintenance Tech", "Groundskeeper"], w: 0.09 },
-  { id: "admin",        name: "Administration",        roles: ["Receptionist", "HR Assistant", "Business Office Coordinator"], w: 0.09 },
+  { id: "nursing",      name: "Nursing & Care",         },
+  { id: "dining",       name: "Culinary & Dining",      },
+  { id: "housekeeping", name: "Housekeeping & Laundry", },
+  { id: "life",         name: "Life Enrichment",        },
+  { id: "maintenance",  name: "Maintenance & Grounds",  },
+  { id: "admin",        name: "Administration",         },
 ];
+const deptById = (id) => DEPTS.find(d => d.id === id) || null;
 
-/* Onboarding checklist for a licensed senior living community. `due` = business
-   days from start by which the item must be complete. `depts` limits applicability. */
+/* Onboarding checklist for a licensed senior living community. `due` = days
+   from start by which the item must be complete. `depts` limits applicability. */
 const REQS = [
   { key: "bg",       label: "Background & abuse-registry check", due: 5 },
   { key: "tb",       label: "Two-step TB test",                  due: 14 },
@@ -398,135 +562,164 @@ const REQS = [
   { key: "r30",      label: "30-day check-in",                   due: 35 },
   { key: "r90",      label: "90-day review",                     due: 95 },
 ];
+const applicableReqs = (deptId) => REQS.filter(r => !r.depts || r.depts.includes(deptId));
 
-const FIRST = ["Maria","James","Aisha","Robert","Elena","David","Priya","Thomas","Gloria","Kevin","Rosa","Daniel","Naomi","Marcus","Linh","Patricia","Samuel","Dorothy","Andre","Keiko","Miguel","Janet","Omar","Cheryl","Victor","Amara","Paul","Sofia","Derek","Hannah","Luis","Tanya"];
-const LAST  = ["Delgado","Whitfield","Okafor","Chen","Ramos","Kowalski","Patel","Brooks","Nguyen","Harmon","Silva","Ferguson","Adeyemi","Lindqvist","Torres","Meyer","Osei","Callahan","Ito","Vance","Moreau","Simmons","Haddad","Porter","Reyes","Blackwood","Kim","Duarte","Foley","Antonelli","Grant","Muller"];
+/* ================= dates ================= */
 
-function pickDept() {
-  let r = rnd(), acc = 0;
-  for (const d of DEPTS) { acc += d.w; if (r <= acc) return d; }
-  return DEPTS[0];
+const TODAY = new Date(); TODAY.setHours(0, 0, 0, 0);
+const DAY = 86400000;
+const fmtMonth = (d) => d.toLocaleDateString("en-US", { month: "short" });
+const fmtMonthYr = (d) => d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+const fmtDate = (d) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+const fmtDateFull = (d) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+const iso = (d) => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+
+/* Accepts YYYY-MM-DD or M/D/YYYY; returns a local-midnight Date or null. */
+function parseDate(s) {
+  if (!s) return null;
+  s = String(s).trim();
+  let m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s);
+  if (m) { const d = new Date(+m[1], +m[2] - 1, +m[3]); return isNaN(d) ? null : d; }
+  m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s);
+  if (m) { const d = new Date(+m[3], +m[1] - 1, +m[2]); return isNaN(d) ? null : d; }
+  return null;
 }
 
-const HIRES = [];
-(function generate() {
-  const usedNames = new Set();
-  for (let i = 0; i < 118; i++) {
-    const dept = pickDept();
-    const role = dept.roles[Math.floor(rnd() * dept.roles.length)];
-    const daysAgo = Math.floor(Math.pow(rnd(), 1.35) * 400);
-    const quit = rnd() < 0.13 ? Math.floor(10 + rnd() * 80) : null;
-    const diligence = 0.72 + rnd() * 0.55;
-    const reqs = {};
-    for (const req of REQS) {
-      if (req.depts && !req.depts.includes(dept.id)) continue;
-      reqs[req.key] = Math.max(1, Math.round(req.due * (0.55 + rnd() * 0.75) * diligence));
-    }
-    let name;
-    do {
-      name = FIRST[Math.floor(rnd() * FIRST.length)] + " " + LAST[Math.floor(rnd() * LAST.length)];
-    } while (usedNames.has(name));
-    usedNames.add(name);
-    HIRES.push({
-      id: i,
-      name,
-      dept, role,
-      start: daysAgoDate(daysAgo),
-      daysIn: daysAgo,
-      quitDay: quit,
-      reqs,
-    });
+/* ================= storage ================= */
+
+const STORE_KEY = "sl-hr-onboarding-v1";
+let storageOK = true;
+function loadHires() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) { storageOK = false; return []; }
+}
+function saveHires() {
+  if (!storageOK) return;
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(hires)); }
+  catch (e) { storageOK = false; flagStorage(); }
+}
+function flagStorage() {
+  if (!storageOK) {
+    document.getElementById("storageNote").textContent =
+      "⚠ Local storage is unavailable here — data will be lost when you leave. Export a CSV to keep it.";
   }
-})();
+}
+function newId() {
+  return (crypto.randomUUID) ? crypto.randomUUID() : "h" + Date.now() + Math.random().toString(36).slice(2, 8);
+}
 
-/* ---------------- derived per-hire state ---------------- */
+/* hire record shape:
+   { id, name, role, dept: <dept id>, start: 'YYYY-MM-DD',
+     separation: 'YYYY-MM-DD'|'', items: { <req key>: 'YYYY-MM-DD' } }   */
+let hires = loadHires();
 
-function hireState(h) {
-  const active = !(h.quitDay !== null && h.daysIn >= h.quitDay);
+/* ================= derived state ================= */
+
+function enrich(h) {
+  const start = parseDate(h.start);
+  const daysIn = Math.floor((TODAY - start) / DAY);
+  const sep = parseDate(h.separation);
+  const sepDay = sep ? Math.round((sep - start) / DAY) : null;
+  const active = !(sep && sep <= TODAY);
   const items = [];
   let done = 0, overdue = 0, dueByNow = 0;
-  for (const req of REQS) {
-    if (!(req.key in h.reqs)) continue;
-    const compDay = h.reqs[req.key];
+  for (const req of applicableReqs(h.dept)) {
+    const date = parseDate(h.items && h.items[req.key]);
     let st;
-    if (compDay <= h.daysIn) { st = "done"; done++; }
-    else if (req.due < h.daysIn) { st = "overdue"; overdue++; }
+    if (date && date <= TODAY) { st = "done"; done++; }
+    else if (daysIn > req.due) { st = "overdue"; overdue++; }
     else st = "pending";
-    if (req.due <= h.daysIn) dueByNow++;
-    items.push({ req, st, compDay });
+    if (req.due <= daysIn) dueByNow++;
+    items.push({ req, st, date });
   }
   const total = items.length;
-  const complete = done === total;
-  const completionDay = complete ? Math.max(...items.map(x => x.compDay)) : null;
-  const progress = done / total;
-  const expected = dueByNow / total;
+  const complete = total > 0 && done === total;
+  const completionDate = complete ? new Date(Math.max(...items.map(x => x.date.getTime()))) : null;
+  const completionDay = complete ? Math.round((completionDate - start) / DAY) : null;
+  const progress = total ? done / total : 0;
+  const expected = total ? dueByNow / total : 0;
   let status = "ontrack";
   if (overdue > 0) status = "overdue";
   else if (progress + 0.12 < expected) status = "atrisk";
-  return { active, items, done, total, overdue, complete, completionDay, progress, status };
+  return { start, daysIn, sep, sepDay, active, items, done, total, overdue,
+           complete, completionDate, completionDay, progress, status };
 }
-for (const h of HIRES) h.s = hireState(h);
+let VIEW = []; /* [{h, s}] recomputed on every data change */
+function recompute() {
+  VIEW = hires
+    .map(h => ({ h, s: enrich(h) }))
+    .filter(v => v.s.start !== null)
+    .sort((a, b) => b.s.start - a.s.start);
+}
 
-/* ---------------- filter state & scoping ---------------- */
+/* ================= filters & scoping ================= */
 
 const state = { months: 6, dept: "all" };
 
-function windowStart(months) {
-  const d = new Date(TODAY.getFullYear(), TODAY.getMonth() - (months - 1), 1);
-  return d;
+function windowStart() {
+  if (state.months === "all") {
+    if (!VIEW.length) return new Date(TODAY.getFullYear(), TODAY.getMonth(), 1);
+    const earliest = new Date(Math.min(...VIEW.map(v => v.s.start.getTime())));
+    return new Date(earliest.getFullYear(), earliest.getMonth(), 1);
+  }
+  return new Date(TODAY.getFullYear(), TODAY.getMonth() - (state.months - 1), 1);
 }
-function inDept(h) { return state.dept === "all" || h.dept.id === state.dept; }
+function monthSpan() {
+  const ws = windowStart();
+  return (TODAY.getFullYear() - ws.getFullYear()) * 12 + (TODAY.getMonth() - ws.getMonth()) + 1;
+}
+const inDept = (v) => state.dept === "all" || v.h.dept === state.dept;
 function cohort() {
-  const ws = windowStart(state.months);
-  return HIRES.filter(h => h.start >= ws && inDept(h));
+  const ws = windowStart();
+  return VIEW.filter(v => v.s.start >= ws && inDept(v));
 }
 function prevCohort() {
-  const ws = windowStart(state.months);
+  if (state.months === "all") return null;
+  const ws = windowStart();
   const prevStart = new Date(ws.getFullYear(), ws.getMonth() - state.months, 1);
-  return HIRES.filter(h => h.start >= prevStart && h.start < ws && inDept(h));
+  return VIEW.filter(v => v.s.start >= prevStart && v.s.start < ws && inDept(v));
 }
 function monthsInWindow() {
-  const out = [];
-  for (let i = state.months - 1; i >= 0; i--) {
-    out.push(new Date(TODAY.getFullYear(), TODAY.getMonth() - i, 1));
-  }
+  const out = [], n = monthSpan();
+  for (let i = n - 1; i >= 0; i--) out.push(new Date(TODAY.getFullYear(), TODAY.getMonth() - i, 1));
   return out;
 }
 const sameMonth = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
 
-/* ---------------- formatting & metric helpers ---------------- */
+/* ================= metrics ================= */
 
 const fmtInt = (n) => n.toLocaleString("en-US");
 const pct = (n) => Math.round(n * 100) + "%";
 
 function metrics(list) {
-  const onboarding = list.filter(h => h.s.active && !h.s.complete);
-  const completions = list.filter(h => h.s.active && h.s.complete);
+  if (list === null) return null;
+  const onboarding = list.filter(v => v.s.active && !v.s.complete);
+  const completions = list.filter(v => v.s.active && v.s.complete);
   const avgDays = completions.length
-    ? completions.reduce((a, h) => a + h.s.completionDay, 0) / completions.length : null;
-  let due = 0, doneDue = 0, overdueItems = 0;
-  for (const h of list.filter(x => x.s.active)) {
-    for (const it of h.s.items) {
-      if (it.req.due <= h.daysIn) {
+    ? completions.reduce((a, v) => a + v.s.completionDay, 0) / completions.length : null;
+  let due = 0, doneDue = 0;
+  for (const v of list.filter(x => x.s.active)) {
+    for (const it of v.s.items) {
+      if (it.req.due <= v.s.daysIn) {
         due++;
         if (it.st === "done") doneDue++;
-        if (it.st === "overdue") overdueItems++;
       }
     }
   }
-  const eligible90 = list.filter(h => h.daysIn >= 90);
-  const retained = eligible90.filter(h => !(h.quitDay !== null && h.quitDay <= 90));
+  const eligible90 = list.filter(v => v.s.daysIn >= 90);
+  const retained = eligible90.filter(v => !(v.s.sepDay !== null && v.s.sepDay <= 90));
   return {
     hires: list.length,
     onboarding: onboarding.length,
     avgDays,
     compliance: due ? doneDue / due : null,
-    overdueItems,
     retention: eligible90.length ? retained.length / eligible90.length : null,
   };
 }
 
-/* ---------------- tooltip ---------------- */
+/* ================= tooltip ================= */
 
 const tip = document.getElementById("tip");
 function tipRow(color, value, name) {
@@ -550,7 +743,7 @@ function showTip(title, rows, x, y) {
 }
 function hideTip() { tip.style.display = "none"; }
 
-/* ---------------- SVG helpers ---------------- */
+/* ================= SVG helpers ================= */
 
 const SVGNS = "http://www.w3.org/2000/svg";
 function sv(name, attrs) {
@@ -581,20 +774,28 @@ function niceTicks(max, count = 4) {
   for (let v = 0; v <= max + step * 0.999; v += step) ticks.push(v);
   return ticks;
 }
-/* column with 4px rounded data-end (top), square baseline */
 function colPath(x, yTop, w, h, r = 4) {
   if (h <= 0) return "";
   const rr = Math.min(r, w / 2, h);
   return `M ${x} ${yTop + h} L ${x} ${yTop + rr} Q ${x} ${yTop} ${x + rr} ${yTop} L ${x + w - rr} ${yTop} Q ${x + w} ${yTop} ${x + w} ${yTop + rr} L ${x + w} ${yTop + h} Z`;
 }
-/* horizontal bar with 4px rounded data-end (right), square baseline (left) */
 function barPath(x, y, w, h, r = 4) {
   if (w <= 0) return "";
   const rr = Math.min(r, h / 2, w);
   return `M ${x} ${y} L ${x + w - rr} ${y} Q ${x + w} ${y} ${x + w} ${y + rr} L ${x + w} ${y + h - rr} Q ${x + w} ${y + h} ${x + w - rr} ${y + h} L ${x} ${y + h} Z`;
 }
+const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
-/* ---------------- chart cards (chart/table toggle plumbing) ---------------- */
+/* measure-then-truncate: a label that won't fit gets an ellipsis, never clipped */
+const measureCtx = document.createElement("canvas").getContext("2d");
+function fitLabel(s, maxW, font = "600 12px system-ui, sans-serif") {
+  measureCtx.font = font;
+  if (measureCtx.measureText(s).width <= maxW) return s;
+  while (s.length > 1 && measureCtx.measureText(s + "…").width > maxW) s = s.slice(0, -1);
+  return s.trimEnd() + "…";
+}
+
+/* ================= chart cards (chart/table toggle plumbing) ================= */
 
 const cards = {};
 for (const card of document.querySelectorAll(".card[data-chart]")) {
@@ -614,6 +815,11 @@ for (const card of document.querySelectorAll(".card[data-chart]")) {
 }
 function fillTable(box, headers, rows, numericCols) {
   box.replaceChildren();
+  if (!rows.length) {
+    const p = document.createElement("p"); p.className = "empty-note";
+    p.textContent = "No data in this slice yet.";
+    box.appendChild(p); return;
+  }
   const table = document.createElement("table"); table.className = "data";
   const thead = document.createElement("thead"); const trh = document.createElement("tr");
   headers.forEach((h, i) => {
@@ -634,8 +840,6 @@ function fillTable(box, headers, rows, numericCols) {
   }
   table.appendChild(tbody); box.appendChild(table);
 }
-
-/* attach hover+focus tooltip to a hit target */
 function hoverTip(node, getTitle, getRows) {
   node.addEventListener("pointermove", (e) => showTip(getTitle(), getRows(), e.clientX, e.clientY));
   node.addEventListener("pointerleave", hideTip);
@@ -645,26 +849,25 @@ function hoverTip(node, getTitle, getRows) {
   });
   node.addEventListener("blur", hideTip);
 }
-
-const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-
-/* measure-then-truncate: a label that won't fit gets an ellipsis, never clipped */
-const measureCtx = document.createElement("canvas").getContext("2d");
-function fitLabel(s, maxW, font = "600 12px system-ui, sans-serif") {
-  measureCtx.font = font;
-  if (measureCtx.measureText(s).width <= maxW) return s;
-  while (s.length > 1 && measureCtx.measureText(s + "…").width > maxW) s = s.slice(0, -1);
-  return s.trimEnd() + "…";
+function chartEmpty(box, msg) {
+  box.replaceChildren();
+  const p = document.createElement("p"); p.className = "empty-note"; p.textContent = msg;
+  box.appendChild(p);
 }
 
-/* ---------------- KPI row ---------------- */
+/* thin x-labels when many months are on screen */
+const monthLabelStep = (n) => Math.max(1, Math.ceil(n / 12));
+
+/* ================= KPI row ================= */
 
 function deltaNode(cur, prev, opts = {}) {
   const wrap = document.createElement("div"); wrap.className = "t-delta";
-  if (cur === null || prev === null || prev === undefined || !isFinite(prev)) {
-    const s = document.createElement("span"); s.className = "vs"; s.textContent = "no prior-period data";
+  const noPrior = () => {
+    const s = document.createElement("span"); s.className = "vs";
+    s.textContent = state.months === "all" ? "all recorded history" : "no prior-period data";
     wrap.appendChild(s); return wrap;
-  }
+  };
+  if (cur === null || prev === null || prev === undefined || !isFinite(prev)) return noPrior();
   const diff = cur - prev;
   if (Math.round(Math.abs(diff)) === 0) {
     const s = document.createElement("span"); s.className = "vs";
@@ -696,7 +899,8 @@ function sparkline(values) {
 }
 
 function renderKPIs() {
-  const cur = metrics(cohort());
+  const list = cohort();
+  const cur = metrics(list);
   const prev = metrics(prevCohort());
   const row = document.getElementById("kpiRow");
   row.replaceChildren();
@@ -712,33 +916,44 @@ function renderKPIs() {
     if (extra) tile.appendChild(extra);
     row.appendChild(tile);
   };
+  const note = (text) => {
+    const n = document.createElement("div"); n.className = "t-delta";
+    const s = document.createElement("span"); s.className = "vs"; s.textContent = text;
+    n.appendChild(s); return n;
+  };
 
-  const monthCounts = monthsInWindow().map(m => cohort().filter(h => sameMonth(h.start, m)).length);
+  const monthCounts = monthsInWindow().map(m => list.filter(v => sameMonth(v.s.start, m)).length);
 
-  mk("New hires", fmtInt(cur.hires), null, deltaNode(cur.hires, prev.hires), sparkline(monthCounts));
+  mk("New hires", fmtInt(cur.hires), null,
+     prev ? deltaNode(cur.hires, prev.hires) : note("all recorded history"),
+     sparkline(monthCounts));
   /* point-in-time count — a vs-prior delta would be meaningless here */
-  const obNote = document.createElement("div"); obNote.className = "t-delta";
-  const obSpan = document.createElement("span"); obSpan.className = "vs";
-  obSpan.textContent = "of " + fmtInt(cur.hires) + " hired in period";
-  obNote.appendChild(obSpan);
-  mk("Currently onboarding", fmtInt(cur.onboarding), null, obNote);
+  mk("Currently onboarding", fmtInt(cur.onboarding), null, note("of " + fmtInt(cur.hires) + " hired in period"));
   mk("Avg days to onboarded", cur.avgDays === null ? "—" : Math.round(cur.avgDays).toString(), cur.avgDays === null ? null : " days",
-     deltaNode(cur.avgDays, prev.avgDays, { downIsGood: true, fmt: n => Math.round(n) + "d" }));
+     cur.avgDays === null ? note("no completions yet") :
+       deltaNode(cur.avgDays, prev ? prev.avgDays : null, { downIsGood: true, fmt: n => Math.round(n) + "d" }));
   mk("Compliance on due items", cur.compliance === null ? "—" : pct(cur.compliance), null,
-     deltaNode(cur.compliance === null ? null : cur.compliance * 100, prev.compliance === null ? null : prev.compliance * 100, { fmt: n => Math.round(n) + " pts" }));
+     cur.compliance === null ? note("no items due yet") :
+       deltaNode(cur.compliance * 100, prev && prev.compliance !== null ? prev.compliance * 100 : null, { fmt: n => Math.round(n) + " pts" }));
   mk("90-day retention", cur.retention === null ? "—" : pct(cur.retention), null,
-     deltaNode(cur.retention === null ? null : cur.retention * 100, prev.retention === null ? null : prev.retention * 100, { fmt: n => Math.round(n) + " pts" }));
+     cur.retention === null ? note("no hires at 90 days yet") :
+       deltaNode(cur.retention * 100, prev && prev.retention !== null ? prev.retention * 100 : null, { fmt: n => Math.round(n) + " pts" }));
 }
 
-/* ---------------- chart 1: new hires by month (columns) ---------------- */
+/* ================= chart 1: new hires by month ================= */
 
 function renderHires() {
   const box = cards.hires.chartbox;
   const months = monthsInWindow();
   const list = cohort();
-  const counts = months.map(m => list.filter(h => sameMonth(h.start, m)).length);
+  const counts = months.map(m => list.filter(v => sameMonth(v.s.start, m)).length);
   document.getElementById("hiresSub").textContent =
-    (state.dept === "all" ? "All departments" : DEPTS.find(d => d.id === state.dept).name) + " · monthly count";
+    (state.dept === "all" ? "All departments" : deptById(state.dept).name) + " · monthly count";
+
+  fillTable(cards.hires.tablebox, ["Month", "New hires"],
+    months.map((mo, i) => [fmtMonthYr(mo), fmtInt(counts[i])]), [1]);
+
+  if (!list.length) { chartEmpty(box, "No hires in this slice yet — add one or import a CSV."); return; }
 
   const W = Math.max(box.clientWidth || 480, 300), H = 240;
   const m = { top: 14, right: 12, bottom: 26, left: 34 };
@@ -758,12 +973,15 @@ function renderHires() {
 
   const band = pw / months.length;
   const bw = Math.min(24, band * 0.5);
+  const lblStep = monthLabelStep(months.length);
   counts.forEach((c, i) => {
     const cx = m.left + band * i + band / 2;
     const hgt = (c / topV) * ph;
     const p = sv("path", { d: colPath(cx - bw / 2, y(c), bw, hgt), fill: "var(--accent)" });
     svg.appendChild(p);
-    svg.appendChild(txt(cx, H - 8, fmtMonth(months[i]), { anchor: "middle" }));
+    if (i % lblStep === 0 || i === months.length - 1) {
+      svg.appendChild(txt(cx, H - 8, fmtMonth(months[i]), { anchor: "middle" }));
+    }
     if (i === months.length - 1 && c > 0) {
       svg.appendChild(txt(cx, y(c) - 6, fmtInt(c), { anchor: "middle", fill: "var(--ink-2)", weight: 600, tabular: true }));
     }
@@ -778,22 +996,20 @@ function renderHires() {
   });
 
   box.replaceChildren(svg);
-  fillTable(cards.hires.tablebox, ["Month", "New hires"],
-    months.map((mo, i) => [fmtMonthYr(mo), fmtInt(counts[i])]), [1]);
 }
 
-/* ---------------- chart 2: onboarding pipeline (funnel) ---------------- */
+/* ================= chart 2: onboarding pipeline ================= */
 
 const STAGES = [
   { label: "Hired",              test: () => true },
-  { label: "Screening cleared",  test: (h) => ["bg", "tb"].every(k => reqDone(h, k)) },
-  { label: "Orientation done",   test: (h) => reqDone(h, "ori") },
-  { label: "Core training done", test: (h) => ["hipaa", "rights", "dementia", "infect", "lic", "cpr", "food"].every(k => reqDone(h, k)) },
-  { label: "Fully onboarded",    test: (h) => h.s.complete },
+  { label: "Screening cleared",  test: (v) => ["bg", "tb"].every(k => reqDone(v, k)) },
+  { label: "Orientation done",   test: (v) => reqDone(v, "ori") },
+  { label: "Core training done", test: (v) => ["hipaa", "rights", "dementia", "infect", "lic", "cpr", "food"].every(k => reqDone(v, k)) },
+  { label: "Fully onboarded",    test: (v) => v.s.complete },
 ];
-function reqDone(h, key) {
-  if (!(key in h.reqs)) return true; /* not applicable counts as satisfied */
-  return h.reqs[key] <= h.daysIn;
+function reqDone(v, key) {
+  const it = v.s.items.find(x => x.req.key === key);
+  return it ? it.st === "done" : true; /* not applicable counts as satisfied */
 }
 
 function renderFunnel() {
@@ -802,8 +1018,13 @@ function renderFunnel() {
   /* cumulative: a hire counts at a stage only having passed every earlier one,
      so the funnel is monotone by construction */
   const counts = STAGES.map((_, i) =>
-    list.filter(h => STAGES.slice(0, i + 1).every(s => s.test(h))).length);
-  const total = counts[0] || 1;
+    list.filter(v => STAGES.slice(0, i + 1).every(s => s.test(v))).length);
+  const total = counts[0];
+
+  fillTable(cards.funnel.tablebox, ["Milestone", "Hires", "Share of cohort"],
+    total ? STAGES.map((s, i) => [s.label, fmtInt(counts[i]), pct(counts[i] / total)]) : [], [1, 2]);
+
+  if (!total) { chartEmpty(box, "No hires in this slice yet."); return; }
 
   const W = Math.max(box.clientWidth || 480, 300);
   const rowH = 40, m = { top: 6, right: 46, bottom: 6, left: 150 };
@@ -817,38 +1038,38 @@ function renderFunnel() {
 
   counts.forEach((c, i) => {
     const yMid = m.top + rowH * i + rowH / 2;
-    const w = (c / total) * pw;
-    const bar = sv("path", { d: barPath(m.left, yMid - 9, Math.max(w, 2), 18), fill: `var(${ordVars[i]})` });
-    svg.appendChild(bar);
-    svg.appendChild(txt(m.left - 10, yMid + 3.5, STAGES[i].label, { anchor: "end", fill: "var(--ink-2)", weight: 600, size: 12 }));
-    svg.appendChild(txt(m.left + Math.max(w, 2) + 8, yMid + 3.5, fmtInt(c), { fill: "var(--ink-2)", weight: 650, size: 12, tabular: true }));
-    const hit = sv("rect", { x: 0, y: m.top + rowH * i, width: W, height: rowH, fill: "transparent", tabindex: 0 });
-    hit.addEventListener("pointerenter", () => bar.setAttribute("opacity", "0.85"));
-    hit.addEventListener("pointerleave", () => bar.removeAttribute("opacity"));
-    hoverTip(hit,
-      () => STAGES[i].label,
-      () => [tipRow(cssVar(ordVars[i]), fmtInt(c) + " of " + fmtInt(total), "hires (" + pct(c / total) + ")")]);
-    svg.appendChild(hit);
+    const w = c === 0 ? 0 : Math.max((c / total) * pw, 2);
+    if (w > 0) {
+      const bar = sv("path", { d: barPath(m.left, yMid - 9, w, 18), fill: `var(${ordVars[i]})` });
+      svg.appendChild(bar);
+      const hit = sv("rect", { x: 0, y: m.top + rowH * i, width: W, height: rowH, fill: "transparent", tabindex: 0 });
+      hit.addEventListener("pointerenter", () => bar.setAttribute("opacity", "0.85"));
+      hit.addEventListener("pointerleave", () => bar.removeAttribute("opacity"));
+      hoverTip(hit,
+        () => STAGES[i].label,
+        () => [tipRow(cssVar(ordVars[i]), fmtInt(c) + " of " + fmtInt(total), "hires (" + pct(c / total) + ")")]);
+      svg.appendChild(hit);
+    }
+    svg.appendChild(txt(m.left - 10, yMid + 3.5, fitLabel(STAGES[i].label, m.left - 14), { anchor: "end", fill: "var(--ink-2)", weight: 600, size: 12 }));
+    svg.appendChild(txt(m.left + w + 8, yMid + 3.5, fmtInt(c), { fill: "var(--ink-2)", weight: 650, size: 12, tabular: true }));
   });
 
   box.replaceChildren(svg);
-  fillTable(cards.funnel.tablebox, ["Milestone", "Hires", "Share of cohort"],
-    STAGES.map((s, i) => [s.label, fmtInt(counts[i]), pct(counts[i] / total)]), [1, 2]);
 }
 
-/* ---------------- chart 3: compliance stacked bars ---------------- */
+/* ================= chart 3: compliance stacked bars ================= */
 
 function renderCompliance() {
   const box = cards.compliance.chartbox;
-  const list = cohort().filter(h => h.s.active && !h.s.complete);
+  const list = cohort().filter(v => v.s.active && !v.s.complete);
 
   const rows = [];
   for (const req of REQS) {
     if (req.key === "r90") continue; /* the completion milestone itself */
     let done = 0, pending = 0, overdue = 0;
-    for (const h of list) {
-      if (!(req.key in h.reqs)) continue;
-      const it = h.s.items.find(x => x.req.key === req.key);
+    for (const v of list) {
+      const it = v.s.items.find(x => x.req.key === req.key);
+      if (!it) continue;
       if (it.st === "done") done++;
       else if (it.st === "overdue") overdue++;
       else pending++;
@@ -857,6 +1078,11 @@ function renderCompliance() {
     if (n > 0) rows.push({ req, done, pending, overdue, n });
   }
   rows.sort((a, b) => (b.overdue / b.n) - (a.overdue / a.n) || (a.done / a.n) - (b.done / b.n));
+
+  fillTable(cards.compliance.tablebox, ["Requirement", "Complete", "In progress", "Overdue", "% complete"],
+    rows.map(r => [r.req.label, fmtInt(r.done), fmtInt(r.pending), fmtInt(r.overdue), pct(r.done / r.n)]), [1, 2, 3, 4]);
+
+  if (!rows.length) { chartEmpty(box, "No hires currently onboarding in this slice."); return; }
 
   const W = Math.max(box.clientWidth || 480, 300);
   const rowH = 30, m = { top: 4, right: 46, bottom: 4, left: Math.min(216, Math.floor(W * 0.42)) };
@@ -895,26 +1121,31 @@ function renderCompliance() {
   });
 
   box.replaceChildren(svg);
-  fillTable(cards.compliance.tablebox, ["Requirement", "Complete", "In progress", "Overdue", "% complete"],
-    rows.map(r => [r.req.label, fmtInt(r.done), fmtInt(r.pending), fmtInt(r.overdue), pct(r.done / r.n)]), [1, 2, 3, 4]);
 }
 
-/* ---------------- chart 4: avg days to onboarded (line) ---------------- */
+/* ================= chart 4: avg days to onboarded (line) ================= */
 
 function renderTTC() {
   const box = cards.ttc.chartbox;
   const months = monthsInWindow();
   const pts = [];
   for (const mo of months) {
-    const comps = HIRES.filter(h => inDept(h) && h.s.active && h.s.complete &&
-      sameMonth(new Date(h.start.getTime() + h.s.completionDay * DAY), mo));
-    if (comps.length) {
-      pts.push({ mo, v: comps.reduce((a, h) => a + h.s.completionDay, 0) / comps.length, n: comps.length });
-    } else {
-      pts.push({ mo, v: null, n: 0 });
-    }
+    const comps = VIEW.filter(v => inDept(v) && v.s.active && v.s.complete && sameMonth(v.s.completionDate, mo));
+    pts.push(comps.length
+      ? { mo, v: comps.reduce((a, v) => a + v.s.completionDay, 0) / comps.length, n: comps.length }
+      : { mo, v: null, n: 0 });
   }
   const have = pts.filter(p => p.v !== null);
+
+  fillTable(cards.ttc.tablebox, ["Completion month", "Avg days", "Hires completed"],
+    pts.map(p => [fmtMonthYr(p.mo), p.v === null ? "—" : Math.round(p.v).toString(), fmtInt(p.n)]), [1, 2]);
+
+  if (have.length < 2) {
+    chartEmpty(box, have.length === 0
+      ? "No completed onboardings in this slice yet — the trend appears once hires finish their checklist."
+      : "Only one month with completions so far — the trend needs at least two. See the table view.");
+    return;
+  }
 
   const W = Math.max(box.clientWidth || 480, 300), H = 240;
   const m = { top: 16, right: 52, bottom: 26, left: 38 };
@@ -922,92 +1153,82 @@ function renderTTC() {
   const svg = sv("svg", { viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: "img",
     "aria-label": "Line chart of average days to complete onboarding by month; table view available" });
 
-  if (have.length < 2) {
-    box.replaceChildren();
-    const note = document.createElement("p"); note.className = "empty-note";
-    note.textContent = "Not enough completed onboardings in this slice to draw a trend — see the table view.";
-    box.appendChild(note);
-  } else {
-    const vals = have.map(p => p.v);
-    const lo = Math.floor(Math.min(...vals, 88) / 10) * 10 - 10;
-    const hi = Math.ceil(Math.max(...vals, 92) / 10) * 10 + 10;
-    const x = (i) => m.left + (i / (months.length - 1)) * pw;
-    const y = (v) => m.top + ph - ((v - lo) / (hi - lo)) * ph;
+  const vals = have.map(p => p.v);
+  const lo = Math.floor(Math.min(...vals, 88) / 10) * 10 - 10;
+  const hi = Math.ceil(Math.max(...vals, 92) / 10) * 10 + 10;
+  const x = (i) => m.left + (months.length === 1 ? pw / 2 : (i / (months.length - 1)) * pw);
+  const y = (v) => m.top + ph - ((v - lo) / (hi - lo)) * ph;
 
-    for (let t = lo; t <= hi; t += 10) {
-      if ((t - lo) % 20 !== 0) continue;
-      svg.appendChild(sv("line", { x1: m.left, x2: m.left + pw, y1: y(t), y2: y(t), stroke: "var(--grid)", "stroke-width": 1 }));
-      svg.appendChild(txt(m.left - 8, y(t) + 3.5, fmtInt(t), { anchor: "end", tabular: true }));
-    }
-    /* 90-day target: labeled reference, drawn as recessive hairline */
-    svg.appendChild(sv("line", { x1: m.left, x2: m.left + pw, y1: y(90), y2: y(90), stroke: "var(--baseline)", "stroke-width": 1 }));
-    svg.appendChild(txt(m.left + pw + 6, y(90) + 3.5, "target", { size: 10 }));
-
-    const seq = pts.map((p, i) => ({ ...p, i })).filter(p => p.v !== null);
-    const dLine = seq.map((p, k) => (k ? "L" : "M") + x(p.i).toFixed(1) + " " + y(p.v).toFixed(1)).join(" ");
-    const dArea = dLine + ` L ${x(seq[seq.length - 1].i).toFixed(1)} ${m.top + ph} L ${x(seq[0].i).toFixed(1)} ${m.top + ph} Z`;
-    svg.appendChild(sv("path", { d: dArea, fill: "var(--accent)", opacity: 0.1 }));
-    svg.appendChild(sv("path", { d: dLine, fill: "none", stroke: "var(--accent)", "stroke-width": 2, "stroke-linecap": "round", "stroke-linejoin": "round" }));
-
-    months.forEach((mo, i) => svg.appendChild(txt(x(i), H - 8, fmtMonth(mo), { anchor: "middle" })));
-
-    const end = seq[seq.length - 1];
-    svg.appendChild(sv("circle", { cx: x(end.i), cy: y(end.v), r: 4.5, fill: "var(--accent)", stroke: "var(--surface)", "stroke-width": 2 }));
-    svg.appendChild(txt(x(end.i) + 9, y(end.v) + 4, Math.round(end.v) + "d", { fill: "var(--ink-2)", weight: 650, size: 12, tabular: true }));
-
-    /* crosshair + tooltip snapped to nearest month */
-    const cross = sv("line", { y1: m.top, y2: m.top + ph, stroke: "var(--baseline)", "stroke-width": 1, visibility: "hidden" });
-    svg.appendChild(cross);
-    const overlay = sv("rect", { x: m.left, y: m.top, width: pw, height: ph, fill: "transparent" });
-    overlay.addEventListener("pointermove", (e) => {
-      const rect = svg.getBoundingClientRect();
-      const px = (e.clientX - rect.left) * (W / rect.width);
-      let best = 0, bestD = Infinity;
-      months.forEach((_, i) => { const d = Math.abs(px - x(i)); if (d < bestD) { bestD = d; best = i; } });
-      cross.setAttribute("x1", x(best)); cross.setAttribute("x2", x(best));
-      cross.setAttribute("visibility", "visible");
-      const p = pts[best];
-      showTip(fmtMonthYr(p.mo),
-        [p.v === null
-          ? tipRow(null, "—", "no completions")
-          : tipRow(cssVar("--accent"), Math.round(p.v) + " days", "avg across " + p.n + (p.n === 1 ? " hire" : " hires"))],
-        e.clientX, e.clientY);
-    });
-    overlay.addEventListener("pointerleave", () => { cross.setAttribute("visibility", "hidden"); hideTip(); });
-    svg.appendChild(overlay);
-    box.replaceChildren(svg);
+  for (let t = lo; t <= hi; t += 10) {
+    if ((t - lo) % 20 !== 0) continue;
+    svg.appendChild(sv("line", { x1: m.left, x2: m.left + pw, y1: y(t), y2: y(t), stroke: "var(--grid)", "stroke-width": 1 }));
+    svg.appendChild(txt(m.left - 8, y(t) + 3.5, fmtInt(t), { anchor: "end", tabular: true }));
   }
+  /* 90-day target: labeled reference, drawn as recessive hairline */
+  svg.appendChild(sv("line", { x1: m.left, x2: m.left + pw, y1: y(90), y2: y(90), stroke: "var(--baseline)", "stroke-width": 1 }));
+  svg.appendChild(txt(m.left + pw + 6, y(90) + 3.5, "target", { size: 10 }));
 
-  fillTable(cards.ttc.tablebox, ["Completion month", "Avg days", "Hires completed"],
-    pts.map(p => [fmtMonthYr(p.mo), p.v === null ? "—" : Math.round(p.v).toString(), fmtInt(p.n)]), [1, 2]);
+  const seq = pts.map((p, i) => ({ ...p, i })).filter(p => p.v !== null);
+  const dLine = seq.map((p, k) => (k ? "L" : "M") + x(p.i).toFixed(1) + " " + y(p.v).toFixed(1)).join(" ");
+  const dArea = dLine + ` L ${x(seq[seq.length - 1].i).toFixed(1)} ${m.top + ph} L ${x(seq[0].i).toFixed(1)} ${m.top + ph} Z`;
+  svg.appendChild(sv("path", { d: dArea, fill: "var(--accent)", opacity: 0.1 }));
+  svg.appendChild(sv("path", { d: dLine, fill: "none", stroke: "var(--accent)", "stroke-width": 2, "stroke-linecap": "round", "stroke-linejoin": "round" }));
+
+  const lblStep = monthLabelStep(months.length);
+  months.forEach((mo, i) => {
+    if (i % lblStep === 0 || i === months.length - 1) svg.appendChild(txt(x(i), H - 8, fmtMonth(mo), { anchor: "middle" }));
+  });
+
+  const end = seq[seq.length - 1];
+  svg.appendChild(sv("circle", { cx: x(end.i), cy: y(end.v), r: 4.5, fill: "var(--accent)", stroke: "var(--surface)", "stroke-width": 2 }));
+  svg.appendChild(txt(x(end.i) + 9, y(end.v) + 4, Math.round(end.v) + "d", { fill: "var(--ink-2)", weight: 650, size: 12, tabular: true }));
+
+  const cross = sv("line", { y1: m.top, y2: m.top + ph, stroke: "var(--baseline)", "stroke-width": 1, visibility: "hidden" });
+  svg.appendChild(cross);
+  const overlay = sv("rect", { x: m.left, y: m.top, width: pw, height: ph, fill: "transparent" });
+  overlay.addEventListener("pointermove", (e) => {
+    const rect = svg.getBoundingClientRect();
+    const px = (e.clientX - rect.left) * (W / rect.width);
+    let best = 0, bestD = Infinity;
+    months.forEach((_, i) => { const d = Math.abs(px - x(i)); if (d < bestD) { bestD = d; best = i; } });
+    cross.setAttribute("x1", x(best)); cross.setAttribute("x2", x(best));
+    cross.setAttribute("visibility", "visible");
+    const p = pts[best];
+    showTip(fmtMonthYr(p.mo),
+      [p.v === null
+        ? tipRow(null, "—", "no completions")
+        : tipRow(cssVar("--accent"), Math.round(p.v) + " days", "avg across " + p.n + (p.n === 1 ? " hire" : " hires"))],
+      e.clientX, e.clientY);
+  });
+  overlay.addEventListener("pointerleave", () => { cross.setAttribute("visibility", "hidden"); hideTip(); });
+  svg.appendChild(overlay);
+  box.replaceChildren(svg);
 }
 
-/* ---------------- attention list & week list ---------------- */
+/* ================= attention & coming due ================= */
 
 function renderAttention() {
   const listEl = document.getElementById("attnList");
   listEl.replaceChildren();
   const items = [];
-  for (const h of cohort().filter(x => x.s.active && !x.s.complete)) {
-    for (const it of h.s.items) {
-      if (it.st === "overdue") {
-        items.push({ h, it, late: h.daysIn - it.req.due });
-      }
+  for (const v of cohort().filter(x => x.s.active && !x.s.complete)) {
+    for (const it of v.s.items) {
+      if (it.st === "overdue") items.push({ v, it, late: v.s.daysIn - it.req.due });
     }
   }
   items.sort((a, b) => b.late - a.late);
   if (!items.length) {
     const p = document.createElement("p"); p.className = "empty-note";
-    p.textContent = "Nothing overdue in this slice — all required items are on schedule.";
+    p.textContent = "Nothing overdue in this slice.";
     listEl.appendChild(p); return;
   }
-  for (const { h, it, late } of items.slice(0, 7)) {
+  for (const { v, it, late } of items.slice(0, 7)) {
     const row = document.createElement("div"); row.className = "attn-item";
     const flag = document.createElement("span"); flag.className = "flag"; flag.textContent = "!"; flag.setAttribute("aria-label", "overdue");
     const body = document.createElement("span");
     const what = document.createElement("span"); what.className = "what"; what.textContent = it.req.label;
     const who = document.createElement("span"); who.className = "who";
-    who.textContent = " — " + h.name + ", " + h.role + " (" + h.dept.name + ")";
+    who.textContent = " — " + v.h.name + (v.h.role ? ", " + v.h.role : "") + " (" + deptById(v.h.dept).name + ")";
     body.appendChild(what); body.appendChild(who);
     const lateEl = document.createElement("span"); lateEl.className = "late";
     lateEl.textContent = late + (late === 1 ? " day late" : " days late");
@@ -1016,7 +1237,7 @@ function renderAttention() {
   }
   if (items.length > 7) {
     const p = document.createElement("p"); p.className = "empty-note";
-    p.textContent = "+ " + (items.length - 7) + " more overdue items — see the roster below.";
+    p.textContent = "+ " + (items.length - 7) + " more overdue items — open a hire in the roster below to update them.";
     listEl.appendChild(p);
   }
 }
@@ -1025,35 +1246,40 @@ function renderWeek() {
   const listEl = document.getElementById("weekList");
   listEl.replaceChildren();
   const events = [];
-  for (const h of cohort().filter(x => x.s.active && !x.s.complete)) {
-    for (const it of h.s.items) {
+  for (const v of cohort().filter(x => x.s.active && !x.s.complete)) {
+    for (const it of v.s.items) {
       if (it.st !== "pending") continue;
-      if (!["ori", "r30", "r90", "mentor"].includes(it.req.key)) continue;
-      const eta = it.compDay - h.daysIn;
-      if (eta >= 0 && eta <= 7) events.push({ h, it, eta });
+      const dueDate = new Date(v.s.start.getTime() + it.req.due * DAY);
+      const eta = Math.round((dueDate - TODAY) / DAY);
+      if (eta >= 0 && eta <= 7) events.push({ v, it, eta, dueDate });
     }
   }
   events.sort((a, b) => a.eta - b.eta);
   if (!events.length) {
     const p = document.createElement("p"); p.className = "empty-note";
-    p.textContent = "No orientation sessions or reviews scheduled in the next 7 days for this slice.";
+    p.textContent = "Nothing comes due in the next 7 days for this slice.";
     listEl.appendChild(p); return;
   }
-  for (const { h, it, eta } of events.slice(0, 7)) {
+  for (const { v, it, eta, dueDate } of events.slice(0, 7)) {
     const row = document.createElement("div"); row.className = "attn-item";
     const body = document.createElement("span");
     const what = document.createElement("span"); what.className = "what"; what.textContent = it.req.label;
     const who = document.createElement("span"); who.className = "who";
-    who.textContent = " — " + h.name + ", " + h.role;
+    who.textContent = " — " + v.h.name + (v.h.role ? ", " + v.h.role : "");
     body.appendChild(what); body.appendChild(who);
     const when = document.createElement("span"); when.className = "late"; when.style.color = "var(--ink-2)";
-    when.textContent = eta === 0 ? "today" : fmtDate(new Date(TODAY.getTime() + eta * DAY));
+    when.textContent = eta === 0 ? "due today" : "due " + fmtDate(dueDate);
     row.appendChild(body); row.appendChild(when);
     listEl.appendChild(row);
   }
+  if (events.length > 7) {
+    const p = document.createElement("p"); p.className = "empty-note";
+    p.textContent = "+ " + (events.length - 7) + " more items due this week.";
+    listEl.appendChild(p);
+  }
 }
 
-/* ---------------- roster ---------------- */
+/* ================= roster ================= */
 
 const STATUS_META = {
   overdue: { label: "Overdue", cls: "chip-overdue", rank: 0 },
@@ -1063,52 +1289,385 @@ const STATUS_META = {
 
 function renderRoster() {
   const box = document.getElementById("rosterBox");
-  const list = cohort().filter(h => h.s.active && !h.s.complete)
-    .sort((a, b) => STATUS_META[a.s.status].rank - STATUS_META[b.s.status].rank || b.start - a.start);
+  const list = cohort().filter(v => v.s.active && !v.s.complete)
+    .sort((a, b) => STATUS_META[a.s.status].rank - STATUS_META[b.s.status].rank || b.s.start - a.s.start);
   document.getElementById("rosterSub").textContent =
-    fmtInt(list.length) + " active " + (list.length === 1 ? "hire" : "hires") + " · sorted by status, then start date";
+    fmtInt(list.length) + " active " + (list.length === 1 ? "hire" : "hires") + " · click a row to update their checklist";
 
   box.replaceChildren();
   if (!list.length) {
     const p = document.createElement("p"); p.className = "empty-note";
-    p.textContent = "No hires currently onboarding in this slice.";
+    p.textContent = hires.length
+      ? "No hires currently onboarding in this slice — adjust the filters, or add a hire."
+      : "No hires yet — use “Add hire” or “Import CSV” above.";
     box.appendChild(p); return;
   }
   const table = document.createElement("table"); table.className = "data";
   const thead = document.createElement("thead"); const trh = document.createElement("tr");
-  for (const [i, hd] of ["Name", "Role", "Department", "Start date", "Day", "Checklist progress", "Status"].entries()) {
+  for (const [i, hd] of ["Name", "Role", "Department", "Start date", "Day", "Checklist progress", "Status", ""].entries()) {
     const th = document.createElement("th"); th.textContent = hd;
     if (i === 4) th.className = "num";
     trh.appendChild(th);
   }
   thead.appendChild(trh); table.appendChild(thead);
   const tbody = document.createElement("tbody");
-  for (const h of list) {
+  for (const v of list) {
     const tr = document.createElement("tr");
-    const cells = [h.name, h.role, h.dept.name, h.start.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })];
+    const cells = [v.h.name, v.h.role || "—", deptById(v.h.dept).name, fmtDateFull(v.s.start)];
     for (const c of cells) { const td = document.createElement("td"); td.textContent = c; tr.appendChild(td); }
-    const tdDay = document.createElement("td"); tdDay.className = "num"; tdDay.textContent = fmtInt(h.daysIn); tr.appendChild(tdDay);
+    const tdDay = document.createElement("td"); tdDay.className = "num"; tdDay.textContent = fmtInt(Math.max(0, v.s.daysIn)); tr.appendChild(tdDay);
     const tdMeter = document.createElement("td");
     const meter = document.createElement("div"); meter.className = "meter";
     const track = document.createElement("div"); track.className = "track";
-    const fill = document.createElement("div"); fill.className = "fill"; fill.style.width = Math.round(h.s.progress * 100) + "%";
+    const fill = document.createElement("div"); fill.className = "fill"; fill.style.width = Math.round(v.s.progress * 100) + "%";
     track.appendChild(fill);
-    const pctEl = document.createElement("span"); pctEl.className = "pct"; pctEl.textContent = Math.round(h.s.progress * 100) + "%";
+    const pctEl = document.createElement("span"); pctEl.className = "pct"; pctEl.textContent = Math.round(v.s.progress * 100) + "%";
     meter.appendChild(track); meter.appendChild(pctEl);
-    meter.setAttribute("aria-label", h.s.done + " of " + h.s.total + " checklist items complete");
+    meter.setAttribute("aria-label", v.s.done + " of " + v.s.total + " checklist items complete");
     tdMeter.appendChild(meter); tr.appendChild(tdMeter);
     const tdStatus = document.createElement("td");
-    const meta = STATUS_META[h.s.status];
+    const meta = STATUS_META[v.s.status];
     const chip = document.createElement("span"); chip.className = "chip " + meta.cls;
     const dot = document.createElement("span"); dot.className = "dot";
     chip.appendChild(dot); chip.append(meta.label);
     tdStatus.appendChild(chip); tr.appendChild(tdStatus);
+    const tdEdit = document.createElement("td");
+    const editBtn = document.createElement("button"); editBtn.className = "rowlink"; editBtn.textContent = "Edit";
+    editBtn.addEventListener("click", (e) => { e.stopPropagation(); openEditor(v.h.id); });
+    tdEdit.appendChild(editBtn); tr.appendChild(tdEdit);
+    tr.style.cursor = "pointer";
+    tr.addEventListener("click", () => openEditor(v.h.id));
     tbody.appendChild(tr);
   }
   table.appendChild(tbody); box.appendChild(table);
 }
 
-/* ---------------- wiring ---------------- */
+/* ================= add / edit dialog ================= */
+
+const editDlg = document.getElementById("editDlg");
+const editForm = document.getElementById("editForm");
+let editingId = null;
+
+const fDept = document.getElementById("f-dept");
+for (const d of DEPTS) {
+  const o = document.createElement("option"); o.value = d.id; o.textContent = d.name;
+  fDept.appendChild(o);
+}
+
+function buildChecklistRows(deptId, values) {
+  const wrap = document.getElementById("clRows");
+  wrap.replaceChildren();
+  for (const req of applicableReqs(deptId)) {
+    const row = document.createElement("div"); row.className = "cl-row";
+    const label = document.createElement("label"); label.className = "cl-label";
+    const cb = document.createElement("input"); cb.type = "checkbox"; cb.dataset.req = req.key;
+    const name = document.createElement("span"); name.textContent = req.label;
+    label.appendChild(cb); label.appendChild(name);
+    const due = document.createElement("span"); due.className = "due"; due.textContent = "due day " + req.due;
+    const date = document.createElement("input"); date.type = "date"; date.dataset.reqDate = req.key;
+    date.setAttribute("aria-label", req.label + " completion date");
+    const existing = values && values[req.key] ? values[req.key] : "";
+    if (existing) { cb.checked = true; date.value = existing; }
+    else date.disabled = true;
+    cb.addEventListener("change", () => {
+      if (cb.checked) { date.disabled = false; if (!date.value) date.value = iso(TODAY); }
+      else { date.value = ""; date.disabled = true; }
+    });
+    row.appendChild(label); row.appendChild(due); row.appendChild(date);
+    wrap.appendChild(row);
+  }
+}
+fDept.addEventListener("change", () => {
+  /* keep already-entered dates for items that remain applicable */
+  const current = collectChecklist();
+  buildChecklistRows(fDept.value, current);
+});
+function collectChecklist() {
+  const out = {};
+  for (const inp of document.querySelectorAll("#clRows input[type=date]")) {
+    if (!inp.disabled && inp.value) out[inp.dataset.reqDate] = inp.value;
+  }
+  return out;
+}
+
+function openEditor(id) {
+  editingId = id;
+  const rec = id ? hires.find(x => x.id === id) : null;
+  document.getElementById("editTitle").textContent = rec ? "Edit hire" : "Add hire";
+  document.getElementById("deleteHireBtn").hidden = !rec;
+  document.getElementById("editErr").hidden = true;
+  document.getElementById("f-name").value = rec ? rec.name : "";
+  document.getElementById("f-role").value = rec ? rec.role : "";
+  fDept.value = rec ? rec.dept : DEPTS[0].id;
+  document.getElementById("f-start").value = rec ? rec.start : iso(TODAY);
+  document.getElementById("f-sep").value = rec && rec.separation ? rec.separation : "";
+  buildChecklistRows(fDept.value, rec ? rec.items : null);
+  editDlg.showModal();
+}
+
+editForm.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const name = document.getElementById("f-name").value.trim();
+  const startVal = document.getElementById("f-start").value;
+  const err = document.getElementById("editErr");
+  if (!name || !parseDate(startVal)) {
+    err.textContent = "A name and a valid start date are required.";
+    err.hidden = false; return;
+  }
+  const rec = {
+    id: editingId || newId(),
+    name,
+    role: document.getElementById("f-role").value.trim(),
+    dept: fDept.value,
+    start: startVal,
+    separation: document.getElementById("f-sep").value || "",
+    items: collectChecklist(),
+  };
+  if (editingId) hires = hires.map(x => x.id === editingId ? rec : x);
+  else hires.push(rec);
+  saveHires();
+  editDlg.close();
+  refresh();
+});
+
+document.getElementById("deleteHireBtn").addEventListener("click", () => {
+  const rec = hires.find(x => x.id === editingId);
+  if (!rec) return;
+  if (!confirm("Delete " + rec.name + " and their checklist? This cannot be undone.")) return;
+  hires = hires.filter(x => x.id !== editingId);
+  saveHires();
+  editDlg.close();
+  refresh();
+});
+
+/* ================= CSV ================= */
+
+const CSV_FIXED = ["name", "role", "department", "start_date", "separation_date"];
+const csvHeaders = () => CSV_FIXED.concat(REQS.map(r => r.key));
+
+function csvEscape(s) {
+  s = String(s == null ? "" : s);
+  return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function toCSV() {
+  const lines = [csvHeaders().join(",")];
+  for (const h of hires) {
+    const row = [h.name, h.role, h.dept, h.start, h.separation || ""];
+    for (const r of REQS) row.push((h.items && h.items[r.key]) || "");
+    lines.push(row.map(csvEscape).join(","));
+  }
+  return lines.join("\r\n");
+}
+/* minimal RFC-4180 parser: quotes, escaped quotes, CR/LF */
+function parseCSV(text) {
+  const rows = []; let row = [], cur = "", inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQ) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') { cur += '"'; i++; }
+        else inQ = false;
+      } else cur += ch;
+    } else if (ch === '"') inQ = true;
+    else if (ch === ",") { row.push(cur); cur = ""; }
+    else if (ch === "\n" || ch === "\r") {
+      if (ch === "\r" && text[i + 1] === "\n") i++;
+      row.push(cur); cur = "";
+      if (row.length > 1 || row[0] !== "") rows.push(row);
+      row = [];
+    } else cur += ch;
+  }
+  row.push(cur);
+  if (row.length > 1 || row[0] !== "") rows.push(row);
+  return rows;
+}
+function matchDept(s) {
+  if (!s) return null;
+  const t = s.trim().toLowerCase();
+  return DEPTS.find(d => d.id === t || d.name.toLowerCase() === t) ||
+         DEPTS.find(d => d.name.toLowerCase().startsWith(t)) || null;
+}
+
+function importCSV(text, mode) {
+  const rows = parseCSV(text);
+  if (!rows.length) return { ok: 0, errors: ["The CSV is empty."], skipped: 0 };
+  const header = rows[0].map(s => s.trim().toLowerCase());
+  const col = {};
+  header.forEach((hd, i) => { col[hd] = i; });
+  if (!("name" in col) || !("start_date" in col)) {
+    return { ok: 0, errors: ['The header row must include at least "name" and "start_date". Use the template for the full column list.'], skipped: 0 };
+  }
+  const get = (r, key) => (key in col && col[key] < r.length) ? String(r[col[key]]).trim() : "";
+  const incoming = [];
+  const errors = [];
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (r.every(c => !String(c).trim())) continue;
+    const name = get(r, "name");
+    const startRaw = get(r, "start_date");
+    const start = parseDate(startRaw);
+    if (!name) { errors.push("Row " + (i + 1) + ": missing name."); continue; }
+    if (!start) { errors.push("Row " + (i + 1) + ": start_date “" + startRaw + "” is not a valid date (use YYYY-MM-DD)."); continue; }
+    const deptRaw = get(r, "department");
+    const dept = matchDept(deptRaw) || DEPTS[DEPTS.length - 1];
+    if (deptRaw && !matchDept(deptRaw)) {
+      errors.push("Row " + (i + 1) + ": unknown department “" + deptRaw + "” — filed under " + dept.name + ".");
+    }
+    const sepRaw = get(r, "separation_date");
+    const sep = sepRaw ? parseDate(sepRaw) : null;
+    if (sepRaw && !sep) errors.push("Row " + (i + 1) + ": separation_date “" + sepRaw + "” ignored (not a valid date).");
+    const items = {};
+    for (const req of REQS) {
+      const val = get(r, req.key);
+      if (!val) continue;
+      const d = parseDate(val);
+      if (d) items[req.key] = iso(d);
+      else errors.push("Row " + (i + 1) + ": " + req.key + " “" + val + "” ignored (not a valid date).");
+    }
+    incoming.push({ id: newId(), name, role: get(r, "role"), dept: dept.id, start: iso(start), separation: sep ? iso(sep) : "", items });
+  }
+  let skipped = 0;
+  if (mode === "replace") {
+    hires = incoming;
+  } else {
+    const existingKeys = new Set(hires.map(h => (h.name + "|" + h.start).toLowerCase()));
+    for (const rec of incoming) {
+      const key = (rec.name + "|" + rec.start).toLowerCase();
+      if (existingKeys.has(key)) { skipped++; continue; }
+      existingKeys.add(key);
+      hires.push(rec);
+    }
+  }
+  saveHires();
+  return { ok: mode === "replace" ? incoming.length : incoming.length - skipped, errors, skipped };
+}
+
+/* ================= dialogs wiring ================= */
+
+for (const dlg of document.querySelectorAll("dialog")) {
+  for (const btn of dlg.querySelectorAll("[data-close]")) {
+    btn.addEventListener("click", () => dlg.close());
+  }
+}
+
+const importDlg = document.getElementById("importDlg");
+const exportDlg = document.getElementById("exportDlg");
+
+/* CSV help table */
+(function () {
+  const help = document.getElementById("csvHelp");
+  const p1 = document.createElement("p");
+  p1.append("One row per hire. Required: ");
+  const c1 = document.createElement("code"); c1.textContent = "name"; p1.appendChild(c1);
+  p1.append(" and ");
+  const c2 = document.createElement("code"); c2.textContent = "start_date"; p1.appendChild(c2);
+  p1.append(" (YYYY-MM-DD). Optional: ");
+  const c3 = document.createElement("code"); c3.textContent = "role"; p1.appendChild(c3);
+  p1.append(", ");
+  const c4 = document.createElement("code"); c4.textContent = "department"; p1.appendChild(c4);
+  p1.append(" (name or id), ");
+  const c5 = document.createElement("code"); c5.textContent = "separation_date"; p1.appendChild(c5);
+  p1.append(". Checklist columns hold the completion date, or blank if not done:");
+  help.appendChild(p1);
+  const ul = document.createElement("ul");
+  ul.style.margin = "6px 0 0"; ul.style.paddingLeft = "18px";
+  for (const r of REQS) {
+    const li = document.createElement("li");
+    const c = document.createElement("code"); c.textContent = r.key;
+    li.appendChild(c); li.append(" — " + r.label + (r.depts ? " (" + r.depts.map(d => deptById(d).name).join(", ") + " only)" : ""));
+    ul.appendChild(li);
+  }
+  help.appendChild(ul);
+  const p2 = document.createElement("p");
+  p2.append("Departments: " + DEPTS.map(d => d.name).join(" · "));
+  help.appendChild(p2);
+})();
+
+function openImport() {
+  document.getElementById("csvText").value = "";
+  document.getElementById("csvFile").value = "";
+  document.getElementById("importReport").replaceChildren();
+  importDlg.showModal();
+}
+document.getElementById("importBtn").addEventListener("click", openImport);
+document.getElementById("emptyImportBtn").addEventListener("click", openImport);
+
+document.getElementById("csvFile").addEventListener("change", async (e) => {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  document.getElementById("csvText").value = await f.text();
+});
+
+document.getElementById("runImportBtn").addEventListener("click", () => {
+  const text = document.getElementById("csvText").value.trim();
+  const report = document.getElementById("importReport");
+  report.replaceChildren();
+  if (!text) {
+    const p = document.createElement("p"); p.className = "err";
+    p.textContent = "Choose a file or paste CSV text first.";
+    report.appendChild(p); return;
+  }
+  const mode = document.querySelector('input[name="importMode"]:checked').value;
+  if (mode === "replace" && hires.length &&
+      !confirm("Replace ALL existing data (" + hires.length + " hires) with this import?")) return;
+  const res = importCSV(text, mode);
+  const p = document.createElement("p"); p.className = "ok";
+  p.textContent = "Imported " + res.ok + (res.ok === 1 ? " hire." : " hires.") +
+    (res.skipped ? " Skipped " + res.skipped + " duplicate" + (res.skipped === 1 ? "" : "s") + " (same name + start date)." : "");
+  report.appendChild(p);
+  if (res.errors.length) {
+    const ul = document.createElement("ul");
+    for (const errMsg of res.errors.slice(0, 12)) {
+      const li = document.createElement("li"); li.textContent = errMsg; ul.appendChild(li);
+    }
+    if (res.errors.length > 12) {
+      const li = document.createElement("li"); li.textContent = "…and " + (res.errors.length - 12) + " more."; ul.appendChild(li);
+    }
+    report.appendChild(ul);
+  }
+  refresh();
+});
+
+document.getElementById("copyTemplateBtn").addEventListener("click", async (e) => {
+  try { await navigator.clipboard.writeText(csvHeaders().join(",") + "\r\n"); e.target.textContent = "Copied ✓"; }
+  catch { document.getElementById("csvText").value = csvHeaders().join(",") + "\r\n"; e.target.textContent = "Pasted below"; }
+  setTimeout(() => { e.target.textContent = "Copy header template"; }, 1600);
+});
+
+document.getElementById("eraseAllBtn").addEventListener("click", () => {
+  if (!hires.length) return;
+  if (!confirm("Erase ALL onboarding data (" + hires.length + " hires) from this browser? Export a CSV first if you need a backup.")) return;
+  hires = [];
+  saveHires();
+  importDlg.close();
+  refresh();
+});
+
+document.getElementById("exportBtn").addEventListener("click", () => {
+  document.getElementById("exportText").value = toCSV();
+  exportDlg.showModal();
+});
+document.getElementById("copyCsvBtn").addEventListener("click", async (e) => {
+  const ta = document.getElementById("exportText");
+  try { await navigator.clipboard.writeText(ta.value); }
+  catch { ta.select(); document.execCommand("copy"); }
+  e.target.textContent = "Copied ✓";
+  setTimeout(() => { e.target.textContent = "Copy to clipboard"; }, 1600);
+});
+document.getElementById("downloadCsvBtn").addEventListener("click", () => {
+  /* may be blocked in sandboxed viewers — the copy button is the fallback */
+  const blob = new Blob([document.getElementById("exportText").value], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "onboarding-" + iso(TODAY) + ".csv";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+});
+
+document.getElementById("addHireBtn").addEventListener("click", () => openEditor(null));
+document.getElementById("emptyAddBtn").addEventListener("click", () => openEditor(null));
+
+/* ================= filters wiring ================= */
 
 document.getElementById("asofDate").textContent =
   TODAY.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
@@ -1123,11 +1682,14 @@ deptSel.addEventListener("change", () => { state.dept = deptSel.value; renderAll
 document.getElementById("rangeSeg").addEventListener("click", (e) => {
   const btn = e.target.closest("button"); if (!btn) return;
   for (const b of document.querySelectorAll("#rangeSeg button")) b.setAttribute("aria-pressed", b === btn ? "true" : "false");
-  state.months = Number(btn.dataset.months);
+  state.months = btn.dataset.months === "all" ? "all" : Number(btn.dataset.months);
   renderAll();
 });
 
+/* ================= top-level render ================= */
+
 function renderAll() {
+  document.getElementById("emptyHero").hidden = hires.length > 0;
   renderKPIs();
   renderHires();
   renderFunnel();
@@ -1137,6 +1699,7 @@ function renderAll() {
   renderWeek();
   renderRoster();
 }
+function refresh() { recompute(); renderAll(); }
 
 let resizeT;
 window.addEventListener("resize", () => {
@@ -1144,7 +1707,8 @@ window.addEventListener("resize", () => {
   resizeT = setTimeout(() => { renderHires(); renderFunnel(); renderCompliance(); renderTTC(); }, 120);
 });
 
-renderAll();
+flagStorage();
+refresh();
 </script>
 </body>
 </html>
