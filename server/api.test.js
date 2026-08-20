@@ -1,0 +1,531 @@
+/**
+ * End-to-end API tests: boot a real server against a throwaway data directory,
+ * sign in as a real seeded user, and drive the flows Enova depends on.
+ */
+
+import test, { before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+import { createServer } from './index.js';
+
+let base;
+let server;
+let db;
+let hub;
+let dataDir;
+const cookies = new Map();
+
+function jar() {
+  return [...cookies.entries()].map(([k, v]) => `${k}=${v}`).join('; ');
+}
+
+async function api(method, url, body, { raw = false } = {}) {
+  const res = await fetch(`${base}${url}`, {
+    method,
+    headers: {
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+      ...(cookies.size ? { Cookie: jar() } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  for (const cookie of res.headers.getSetCookie?.() ?? []) {
+    const [pair] = cookie.split(';');
+    const [name, value] = pair.split('=');
+    if (value === '') cookies.delete(name); else cookies.set(name, value);
+  }
+  const payload = res.headers.get('content-type')?.includes('json') ? await res.json() : await res.text();
+  if (raw) return { status: res.status, body: payload };
+  if (!res.ok) throw new Error(`${method} ${url} → ${res.status}: ${payload?.error ?? payload}`);
+  return payload;
+}
+
+const get = (url) => api('GET', url);
+const post = (url, body) => api('POST', url, body);
+const patch = (url, body) => api('PATCH', url, body);
+
+before(async () => {
+  dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'enova-api-'));
+  const created = createServer({ dataDir });
+  db = created.db;
+  hub = created.hub;
+  server = created.app.listen(0);
+  await new Promise((resolve) => server.once('listening', resolve));
+  base = `http://127.0.0.1:${server.address().port}`;
+});
+
+after(async () => {
+  hub?.close();
+  await new Promise((resolve) => server.close(resolve));
+  db?.close();
+  fs.rmSync(dataDir, { recursive: true, force: true });
+});
+
+test('health and metadata are public', async () => {
+  const health = await get('/api/health');
+  assert.equal(health.ok, true);
+  assert.ok(health.records > 500, 'the seed should have populated the database');
+  const meta = await get('/api/meta');
+  assert.ok(meta.workOrderStages.length >= 7);
+  assert.ok(meta.formulaFormats.some((f) => f.value === 'gummy'));
+});
+
+test('the API refuses anonymous access to data', async () => {
+  const { status, body } = await api('GET', '/api/data/customers', undefined, { raw: true });
+  assert.equal(status, 401);
+  assert.match(body.error, /Sign in/);
+});
+
+test('a wrong password is rejected without revealing whether the account exists', async () => {
+  const wrongPassword = await api('POST', '/api/auth/login', { email: 'jbradfield@enovascience.com', password: 'nope' }, { raw: true });
+  const noSuchUser = await api('POST', '/api/auth/login', { email: 'nobody@enovascience.com', password: 'nope' }, { raw: true });
+  assert.equal(wrongPassword.status, 401);
+  assert.equal(noSuchUser.status, 401);
+  assert.equal(wrongPassword.body.error, noSuchUser.body.error);
+});
+
+test('sign in establishes a session and reports capabilities', async () => {
+  const login = await post('/api/auth/login', { email: 'jbradfield@enovascience.com', password: 'enova2026' });
+  assert.equal(login.user.email, 'jbradfield@enovascience.com');
+  assert.equal(login.user.role, 'admin');
+  assert.equal(login.user.passwordHash, undefined, 'the password hash must never leave the server');
+  assert.equal(login.permissions['production.release'], true);
+
+  const me = await get('/api/auth/me');
+  assert.equal(me.user.id, login.user.id);
+});
+
+test('the dashboard assembles KPIs, alerts and my work', async () => {
+  const dash = await get('/api/dashboard');
+  assert.ok(dash.kpis.length >= 8);
+  assert.ok(dash.kpis.every((k) => k.value !== undefined));
+  assert.equal(dash.production.length, 7);
+  assert.equal(dash.throughput.length, 12);
+  assert.ok(Array.isArray(dash.alerts));
+  assert.ok(Array.isArray(dash.myWork.tasks));
+});
+
+test('global search spans every module', async () => {
+  const results = await get('/api/search?q=gummy');
+  assert.ok(results.total > 0);
+  const collections = results.groups.map((g) => g.collection);
+  assert.ok(collections.includes('formulas'), `expected formulas in ${collections.join(', ')}`);
+  assert.ok(results.groups.every((g) => g.results.every((r) => r.link.startsWith('/'))));
+});
+
+test('generic CRUD creates, patches and archives with optimistic concurrency', async () => {
+  const created = await post('/api/data/customers', { code: 'C-TEST-1', name: 'Test Customer Co.', status: 'prospect' });
+  assert.equal(created.version, 1);
+  assert.equal(created.createdBy, (await get('/api/auth/me')).user.id);
+
+  const updated = await patch(`/api/data/customers/${created.id}`, { status: 'active', expectedVersion: 1 });
+  assert.equal(updated.status, 'active');
+  assert.equal(updated.version, 2);
+
+  const stale = await api('PATCH', `/api/data/customers/${created.id}`, { status: 'on_hold', expectedVersion: 1 }, { raw: true });
+  assert.equal(stale.status, 409);
+  assert.match(stale.body.error, /changed by someone else/);
+
+  const duplicate = await api('POST', '/api/data/customers', { code: 'C-TEST-1', name: 'Another' }, { raw: true });
+  assert.equal(duplicate.status, 409);
+
+  const invalid = await api('POST', '/api/data/customers', { name: 'No code', status: 'not-a-status' }, { raw: true });
+  assert.equal(invalid.status, 422);
+
+  await api('DELETE', `/api/data/customers/${created.id}`);
+  const gone = await api('GET', `/api/data/customers/${created.id}`, undefined, { raw: true });
+  assert.equal(gone.status, 404);
+  await post(`/api/data/customers/${created.id}/restore`);
+  assert.equal((await get(`/api/data/customers/${created.id}`)).status, 'active');
+});
+
+test('every write lands in the audit trail with the actor', async () => {
+  const customer = await post('/api/data/customers', { code: 'C-TEST-2', name: 'Audited Co.' });
+  await patch(`/api/data/customers/${customer.id}`, { tier: 'key' });
+  const history = await get(`/api/data/customers/${customer.id}/history`);
+  assert.equal(history.entries.length, 2);
+  assert.equal(history.entries[0].op, 'update');
+  assert.equal(history.entries[0].actorName, 'Jordan Bradfield');
+  assert.deepEqual(history.entries[0].changes, [{ field: 'tier', from: 'standard', to: 'key' }]);
+});
+
+test('the production board groups work orders and flags WIP breaches', async () => {
+  const board = await get('/api/production/board');
+  assert.equal(board.columns.length, 7);
+  assert.ok(board.total > 0);
+  for (const column of board.columns) {
+    assert.equal(column.count, column.cards.length);
+    assert.ok(column.cards.every((c) => c.stage === column.value));
+  }
+});
+
+test('a work order cannot start before its materials are staged', async () => {
+  const board = await get('/api/production/board');
+  const planned = board.columns.find((c) => c.value === 'planned').cards[0];
+  const blocked = await api('POST', `/api/production/${planned.id}/move`, { stage: 'in_process' }, { raw: true });
+  assert.equal(blocked.status, 409);
+  assert.match(blocked.body.error, /not been issued/);
+});
+
+test('a QC hold needs a reason, and failing a check pulls the batch onto hold', async () => {
+  const board = await get('/api/production/board');
+  const running = board.columns.find((c) => c.value === 'in_process').cards[0];
+
+  const noReason = await api('POST', `/api/production/${running.id}/move`, { stage: 'qc_hold' }, { raw: true });
+  assert.equal(noReason.status, 422);
+  assert.match(noReason.body.error, /needs a reason/);
+
+  const held = await post(`/api/production/${running.id}/move`, { stage: 'qc_hold', holdReason: 'Weight variation out of spec' });
+  assert.equal(held.stage, 'qc_hold');
+  assert.equal(held.holdReason, 'Weight variation out of spec');
+
+  const back = await post(`/api/production/${running.id}/move`, { stage: 'in_process' });
+  assert.equal(back.holdReason, '', 'leaving QC hold clears the reason');
+
+  const failed = await post(`/api/production/${running.id}/qc/1`, { status: 'fail', result: '9.2%' });
+  assert.equal(failed.stage, 'qc_hold');
+  assert.match(failed.holdReason, /Average weight failed/);
+});
+
+test('a batch cannot be released with unfinished steps or open deviations', async () => {
+  const board = await get('/api/production/board');
+  const inReview = board.columns.find((c) => c.value === 'qa_review').cards[0];
+  const blocked = await api('POST', `/api/production/${inReview.id}/move`, { stage: 'complete' }, { raw: true });
+  assert.equal(blocked.status, 409);
+  assert.match(blocked.body.error, /not signed off|open deviation/);
+});
+
+test('issuing material draws down the lot and writes the ledger entry in one transaction', async () => {
+  const created = await post('/api/production/from-formula', {
+    formulaId: db.findOne('formulas', { code: 'F-4002' }).id,
+    plannedQty: 1000,
+  });
+  assert.match(created.woNumber, /^WO-\d{4}-\d{4}$/);
+  assert.ok(created.materials.length > 0);
+
+  const availability = await get(`/api/production/${created.id}/availability`);
+  const line = availability.rows.findIndex((r) => r.lots.length && r.lots[0].qtyOnHand > r.required && r.required > 0);
+  assert.ok(line >= 0, 'the seed should leave at least one fully covered material line');
+
+  const material = availability.rows[line];
+  const lot = material.lots[0];
+  const before = db.get('lots', lot.id).qtyOnHand;
+  const issueQty = Number((material.required).toFixed(3));
+
+  const updated = await post(`/api/production/${created.id}/issue`, { index: line, lotId: lot.id, qty: issueQty });
+  assert.equal(updated.materials[line].issuedQty, issueQty);
+  assert.equal(db.get('lots', lot.id).qtyOnHand, Number((before - issueQty).toFixed(4)));
+
+  const txn = db.find('inventoryTxns', { lotId: lot.id, type: 'issue' }).sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+  assert.equal(txn.qty, -issueQty);
+  assert.equal(txn.refId, created.id);
+});
+
+test('issuing more than a lot holds is refused and changes nothing', async () => {
+  const wo = db.all('workOrders', { sort: '-createdAt' })[0];
+  const lot = db.find('lots', { status: 'released' }).find((l) => l.itemId === wo.materials[0].itemId);
+  assert.ok(lot, 'expected a released lot for the first material line');
+  const before = db.get('lots', lot.id).qtyOnHand;
+
+  const refused = await api('POST', `/api/production/${wo.id}/issue`, { index: 0, lotId: lot.id, qty: before + 100 }, { raw: true });
+  assert.equal(refused.status, 409);
+  assert.match(refused.body.error, /on hand/);
+  assert.equal(db.get('lots', lot.id).qtyOnHand, before, 'the failed issue must not move stock');
+});
+
+test('inventory positions roll lots up per item with alerts', async () => {
+  const positions = await get('/api/inventory/positions?limit=500');
+  assert.ok(positions.rows.length > 50);
+  const withStock = positions.rows.find((r) => r.onHand > 0);
+  assert.ok(withStock.value > 0);
+  assert.ok(positions.totals.value > 0);
+
+  const alerts = await get('/api/inventory/alerts');
+  assert.ok(Array.isArray(alerts.rows));
+  assert.ok(alerts.rows.every((a) => a.message && a.severity));
+});
+
+test('receiving a COA-required item lands it in quarantine, and release requires the COA', async () => {
+  const item = db.findOne('items', { itemCode: 'ALT-RP-1001' });
+  const lot = await post('/api/inventory/receive', { itemId: item.id, qty: 25, vendorLot: 'TEST-LOT-1' });
+  assert.equal(lot.status, 'quarantine');
+  assert.equal(lot.qtyOnHand, 25);
+
+  const refused = await api('POST', `/api/inventory/lots/${lot.id}/disposition`, { status: 'released' }, { raw: true });
+  assert.equal(refused.status, 409);
+  assert.match(refused.body.error, /certificate of analysis/);
+
+  const released = await post(`/api/inventory/lots/${lot.id}/disposition`, { status: 'released', coaReceived: true });
+  assert.equal(released.status, 'released');
+  assert.equal(released.dispositionBy, (await get('/api/auth/me')).user.id);
+});
+
+test('lot genealogy traces from a lot forward to customers', async () => {
+  const issue = db.all('inventoryTxns').find((t) => t.type === 'issue' && t.refId);
+  const trace = await get(`/api/inventory/lots/${issue.lotId}/trace`);
+  assert.ok(trace.lot);
+  assert.ok(trace.item);
+  assert.ok(Array.isArray(trace.workOrders));
+  assert.ok(Array.isArray(trace.customers));
+});
+
+test('the cost engine prices a saved formula through the API', async () => {
+  const formula = db.findOne('formulas', { code: 'F-4001' });
+  const cost = await get(`/api/commerce/formulas/${formula.id}/cost?qty=25000`);
+  assert.equal(cost.product.format, 'gummy');
+  assert.ok(Number(cost.costSummary.rawMaterialsPerUnit) > 0);
+  assert.ok(Number(cost.tiers[0].cogsPerUnit) > 0);
+  assert.equal(cost.tiers[0].salePricePerUnit, null, 'no margin was supplied, so no price is invented');
+  assert.ok(cost.compliance.length > 0);
+});
+
+test('a quote is created, re-priced and converted to an order', async () => {
+  const formula = db.findOne('formulas', { code: 'F-4002' });
+  const quote = await post('/api/commerce/quotes', {
+    formulaId: formula.id,
+    tiers: [
+      { qty: 10000, labor: { encapsulationPer1000: 15, packagingPer1000: 10, qcPctOfProduction: 0.12 }, overheadRate: 0.9, margin: 0.45 },
+      { qty: 50000, labor: { encapsulationPer1000: 12, packagingPer1000: 8, qcPctOfProduction: 0.12 }, overheadRate: 0.6, margin: 0.4 },
+    ],
+  });
+  assert.match(quote.quoteNumber, /^Q-\d{4}-\d{4}$/);
+  assert.equal(quote.result.tiers.length, 2);
+  assert.ok(Number(quote.result.tiers[1].cogsPerUnit) < Number(quote.result.tiers[0].cogsPerUnit));
+
+  const repriced = await post(`/api/commerce/quotes/${quote.id}/recompute`, {
+    tiers: quote.tiers.map((t) => ({ ...t, margin: 0.5 })),
+  });
+  assert.ok(Number(repriced.result.tiers[0].salePricePerUnit) > Number(quote.result.tiers[0].salePricePerUnit));
+
+  await post(`/api/commerce/quotes/${quote.id}/send`);
+  await post(`/api/commerce/quotes/${quote.id}/decide`, { decision: 'accepted' });
+
+  const badTier = await api('POST', `/api/commerce/quotes/${quote.id}/to-order`, { qty: 999 }, { raw: true });
+  assert.equal(badTier.status, 422);
+  assert.match(badTier.body.error, /no 999-unit tier/);
+
+  const order = await post(`/api/commerce/quotes/${quote.id}/to-order`, { qty: 50000, customerPo: 'PO-99887' });
+  assert.equal(order.status, 'confirmed');
+  assert.equal(order.lines[0].qty, 50000);
+  assert.equal(order.lines[0].unitPrice, Number(repriced.result.tiers[1].salePricePerUnit));
+});
+
+test('a quote with no margin on a tier cannot be sent', async () => {
+  const formula = db.findOne('formulas', { code: 'F-4006' });
+  const quote = await post('/api/commerce/quotes', {
+    formulaId: formula.id,
+    tiers: [{ qty: 25000, labor: { compressionPer1000: 14 }, overheadRate: 0.7, margin: null }],
+  });
+  const refused = await api('POST', `/api/commerce/quotes/${quote.id}/send`, {}, { raw: true });
+  assert.equal(refused.status, 409);
+  assert.match(refused.body.error, /no margin set/);
+});
+
+test('the label engine runs through the API and enforces the sign-off rules', async () => {
+  const checklist = await get('/api/labels/checklist');
+  assert.equal(checklist.rows.length, 41);
+  assert.equal(checklist.evidenceBlocked, 20);
+
+  const review = await post('/api/labels', {
+    productName: 'API Test Label',
+    brand: 'Testco',
+    panels: {
+      pdp: 'TESTCO\nAPI Test Label\nDietary Supplement\n60 Capsules',
+      information: 'Supplement Facts\nServing Size: 2 Capsules\nServings Per Container: 30\n\nVitamin C (as ascorbic acid)   250 mg   417%\n\nOther Ingredients: Microcrystalline cellulose.\n\nManufactured: Testco, Austin, TX',
+      leftSide: 'Suggested Use: Take 2 capsules daily.',
+    },
+  });
+  assert.ok(review.metrics.requiredCorrections > 0);
+  assert.equal(review.checklist.length, 41);
+
+  // a row that needs artwork cannot be ticked without recorded evidence
+  const noEvidence = await api('POST', `/api/labels/${review.id}/checklist/10`, { state: 'pass' }, { raw: true });
+  assert.equal(noEvidence.status, 422);
+  assert.match(noEvidence.body.error, /without a comment/);
+  const withEvidence = await post(`/api/labels/${review.id}/checklist/10`, { state: 'pass', comment: 'Checked the print PDF at 300 dpi — hairlines span the full panel width.' });
+  assert.equal(withEvidence.checklist.find((c) => c.id === 10).state, 'pass');
+
+  // approval is blocked while any finding is undecided
+  const undecided = await api('POST', `/api/labels/${review.id}/approve`, {}, { raw: true });
+  assert.equal(undecided.status, 409);
+  assert.match(undecided.body.error, /no decision yet/);
+
+  const denyWithoutReason = await api('POST', `/api/labels/${review.id}/findings/${review.findings[0].id}`, { decision: 'denied' }, { raw: true });
+  assert.equal(denyWithoutReason.status, 422);
+
+  for (const finding of review.findings) {
+    await post(`/api/labels/${review.id}/findings/${finding.id}`, { decision: 'accepted' });
+  }
+  const soleReviewer = await api('POST', `/api/labels/${review.id}/approve`, {}, { raw: true });
+  assert.equal(soleReviewer.status, 409);
+  assert.match(soleReviewer.body.error, /signed by two people/);
+
+  const approved = await post(`/api/labels/${review.id}/approve`, { soleReviewerReason: 'Second reviewer unavailable; documented per SOP-QA-014.' });
+  assert.equal(approved.status, 'approved');
+
+  const proof = await get(`/api/labels/${review.id}/corrected-proof`);
+  assert.ok(proof.applied.length + proof.manual.length > 0);
+  assert.match(proof.note, /proof, not artwork/);
+});
+
+test('reorder suggestions drive purchase order drafting', async () => {
+  const suggestions = await get('/api/purchasing/reorder-suggestions');
+  assert.ok(Array.isArray(suggestions.rows));
+  if (!suggestions.rows.length) return;
+
+  const withVendor = suggestions.rows.filter((r) => r.vendorId && r.suggestedQty > 0).slice(0, 3);
+  if (!withVendor.length) return;
+  const drafted = await post('/api/purchasing/draft-from-suggestions', { itemIds: withVendor.map((r) => r.itemId) });
+  assert.ok(drafted.count >= 1);
+  for (const po of drafted.created) {
+    assert.equal(po.status, 'draft');
+    assert.equal(po.total, Number((po.subtotal + po.freight + po.tax).toFixed(2)));
+  }
+});
+
+test('purchase order approval refuses an unqualified vendor without an override', async () => {
+  const vendor = db.findOne('vendors', { status: 'pending' });
+  const po = await post('/api/data/purchaseOrders', {
+    poNumber: 'PO-TEST-0001',
+    vendorId: vendor.id,
+    lines: [{ itemId: db.findOne('items', {}).id, description: 'Test', qty: 10, uom: 'kg', unitCost: 5, received: 0 }],
+    subtotal: 50, total: 50,
+  });
+  const refused = await api('POST', `/api/purchasing/${po.id}/approve`, {}, { raw: true });
+  assert.equal(refused.status, 409);
+  assert.match(refused.body.error, /is pending qualification —/);
+
+  const approved = await post(`/api/purchasing/${po.id}/approve`, { overrideReason: 'Sole-source ingredient; qualification audit booked for next week.' });
+  assert.equal(approved.status, 'approved');
+  assert.match(approved.notes, /Sole-source ingredient/);
+});
+
+test('receiving against a purchase order rolls the line forward', async () => {
+  const po = db.findOne('purchaseOrders', { poNumber: 'PO-TEST-0001' });
+  await post(`/api/purchasing/${po.id}/send`);
+  const line = po.lines[0];
+  const lot = await post('/api/inventory/receive', { itemId: line.itemId, qty: line.qty, purchaseOrderId: po.id });
+  const updated = db.get('purchaseOrders', po.id);
+  assert.equal(updated.status, 'received');
+  assert.equal(updated.lines[0].received, line.qty);
+  assert.ok(updated.lines[0].lotIds.includes(lot.id));
+});
+
+test('board moves persist column and order, and a gated stage is protected', async () => {
+  const project = db.find('projects', { stage: 'intake' })[0];
+  const moved = await post('/api/boards/projects/move', { id: project.id, column: 'feasibility', beforeOrder: 100, afterOrder: 200 });
+  assert.equal(moved.stage, 'feasibility');
+  assert.equal(moved.boardOrder, 150);
+
+  // a gate guards the exit from its own stage, so an open feasibility check
+  // blocks the move forward and an override reason carries it through
+  const blocked = await api('POST', '/api/boards/projects/move', { id: project.id, column: 'formulation' }, { raw: true });
+  assert.equal(blocked.status, 409);
+  assert.match(blocked.body.error, /Feasibility gate check/);
+  const overridden = await post('/api/boards/projects/move', { id: project.id, column: 'formulation', overrideReason: 'Cost target signed off verbally by the customer; minutes filed.' });
+  assert.equal(overridden.stage, 'formulation');
+
+  const task = db.find('tasks', { status: 'todo' })[0];
+  const doneTask = await post('/api/boards/tasks/move', { id: task.id, column: 'done' });
+  assert.equal(doneTask.status, 'done');
+  assert.ok(doneTask.completedAt);
+});
+
+test('a non-admin role is blocked from writes it does not own', async () => {
+  await post('/api/auth/logout');
+  await post('/api/auth/login', { email: 'mbell@enovascience.com', password: 'enova2026' }); // warehouse
+
+  const me = await get('/api/auth/me');
+  assert.equal(me.user.role, 'warehouse');
+  assert.equal(me.permissions['inventory.write'], true);
+  assert.equal(me.permissions['quotes.write'], false);
+
+  const refused = await api('POST', '/api/data/quotes', { quoteNumber: 'Q-NOPE', title: 'Nope' }, { raw: true });
+  assert.equal(refused.status, 403);
+  assert.match(refused.body.error, /cannot write quotes/);
+
+  const disposition = await api('POST', `/api/inventory/lots/${db.findOne('lots', {}).id}/disposition`, { status: 'released' }, { raw: true });
+  assert.equal(disposition.status, 403, 'only quality may dispose of a lot');
+
+  // but the warehouse can do warehouse work
+  const positions = await get('/api/inventory/positions?limit=5');
+  assert.ok(positions.rows.length > 0);
+});
+
+test('changing a password invalidates other sessions', async () => {
+  const changed = await post('/api/auth/password', { currentPassword: 'enova2026', newPassword: 'a-much-longer-passphrase' });
+  assert.equal(changed.ok, true);
+  const short = await api('POST', '/api/auth/password', { currentPassword: 'a-much-longer-passphrase', newPassword: 'short' }, { raw: true });
+  assert.equal(short.status, 422);
+  const stillSignedIn = await get('/api/auth/me');
+  assert.equal(stillSignedIn.user.email, 'mbell@enovascience.com');
+  assert.equal(stillSignedIn.user.mustChangePassword, false);
+});
+
+test('live sync pushes database changes to connected clients', async () => {
+  await post('/api/auth/logout');
+  const login = await post('/api/auth/login', { email: 'jbradfield@enovascience.com', password: 'enova2026' });
+
+  const controller = new AbortController();
+  const res = await fetch(`${base}/api/stream`, {
+    headers: { Authorization: `Bearer ${login.token}` },
+    signal: controller.signal,
+  });
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+
+  const readEvent = async (name, timeoutMs = 5000) => {
+    const deadline = Date.now() + timeoutMs;
+    let buffer = '';
+    while (Date.now() < deadline) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const blocks = buffer.split('\n\n');
+      buffer = blocks.pop() ?? '';
+      for (const block of blocks) {
+        if (!block.includes(`event: ${name}`)) continue;
+        return JSON.parse(block.split('data: ')[1]);
+      }
+    }
+    throw new Error(`timed out waiting for a "${name}" event`);
+  };
+
+  const hello = await readEvent('hello');
+  assert.equal(hello.you.email ?? hello.you.name, 'Jordan Bradfield');
+
+  await post('/api/data/tasks', { title: 'Realtime smoke test', status: 'todo' });
+  const change = await readEvent('change');
+  assert.equal(change.collection, 'tasks');
+  assert.equal(change.op, 'insert');
+  assert.equal(change.record.title, 'Realtime smoke test');
+  assert.equal(change.actorName, 'Jordan Bradfield');
+
+  controller.abort();
+});
+
+test('admin health reports the file-system database honestly', async () => {
+  const health = await get('/api/admin/health');
+  assert.match(health.database.engine, /enova-fsdb/);
+  assert.ok(health.database.totalRecords > 500);
+  assert.ok(health.database.collections.workOrders.live > 0);
+  assert.ok(health.files.path.endsWith('files'));
+
+  const backup = await post('/api/admin/backup');
+  assert.ok(backup.stamp);
+  assert.ok(fs.existsSync(path.join(backup.path, 'workOrders.json')), 'a backup set contains a snapshot per collection');
+
+  const exported = await get('/api/admin/export/formulas');
+  assert.equal(exported.collection, 'formulas');
+  assert.ok(exported.records.length >= 8);
+});
+
+test('the data on disk is plain, readable JSON', async () => {
+  db.checkpoint();
+  const snapshot = JSON.parse(fs.readFileSync(path.join(dataDir, 'db', 'formulas.json'), 'utf8'));
+  assert.equal(snapshot.collection, 'formulas');
+  assert.ok(snapshot.records.some((r) => r.code === 'F-4001'));
+  assert.ok(snapshot.savedAt);
+});

@@ -1,0 +1,201 @@
+/*
+ * Enova Ops design tokens.
+ *
+ * One palette, two themes. Every colour in the app resolves through a semantic
+ * token (`--surface-2`, `--text-muted`, `--tone-warning-fg`) rather than a raw
+ * hex value, so the light and dark themes stay in step and a brand change is a
+ * single edit here.
+ *
+ * The Enova brand marks — navy #1B3A5C, teal #1D7A6B, gold #C8972A — anchor the
+ * hues; the dark theme lifts the teal to #2FBF9B so it holds contrast on ink.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* ── brand ─────────────────────────────────────────────────────────────── */
+  --brand-navy: #1b3a5c;
+  --brand-teal: #1d7a6b;
+  --brand-gold: #c8972a;
+
+  /* ── surfaces (dark, the default) ──────────────────────────────────────── */
+  --bg: #080c14;
+  --surface-0: #0b1220;
+  --surface-1: #101a2b;
+  --surface-2: #152238;
+  --surface-3: #1c2c45;
+  --surface-inset: #070b12;
+  --surface-glass: rgba(16, 26, 43, 0.82);
+
+  --line: #1f3050;
+  --line-soft: #16233a;
+  --line-strong: #2b4066;
+
+  /* ── text ──────────────────────────────────────────────────────────────── */
+  --text: #e8eef8;
+  --text-strong: #ffffff;
+  --text-muted: #93a4c0;
+  --text-faint: #64748f;
+  --text-inverse: #0b1220;
+
+  /* ── accents ───────────────────────────────────────────────────────────── */
+  --accent: #2fbf9b;
+  --accent-soft: rgba(47, 191, 155, 0.14);
+  --accent-line: rgba(47, 191, 155, 0.32);
+  --accent-text: #5fd8bb;
+  --accent-contrast: #04231c;
+
+  --gold: #e0b04a;
+  --gold-soft: rgba(224, 176, 74, 0.14);
+
+  /* ── tones (status pills, badges, alerts) ──────────────────────────────── */
+  --tone-neutral-fg: #a9b8d1;
+  --tone-neutral-bg: rgba(147, 164, 192, 0.12);
+  --tone-neutral-line: rgba(147, 164, 192, 0.26);
+
+  --tone-info-fg: #7fb2ff;
+  --tone-info-bg: rgba(94, 150, 255, 0.14);
+  --tone-info-line: rgba(94, 150, 255, 0.3);
+
+  --tone-progress-fg: #8fa9ff;
+  --tone-progress-bg: rgba(124, 145, 255, 0.15);
+  --tone-progress-line: rgba(124, 145, 255, 0.32);
+
+  --tone-success-fg: #4ede9f;
+  --tone-success-bg: rgba(45, 205, 140, 0.14);
+  --tone-success-line: rgba(45, 205, 140, 0.32);
+
+  --tone-warning-fg: #f2b544;
+  --tone-warning-bg: rgba(232, 168, 46, 0.15);
+  --tone-warning-line: rgba(232, 168, 46, 0.34);
+
+  --tone-danger-fg: #ff7a85;
+  --tone-danger-bg: rgba(240, 90, 105, 0.15);
+  --tone-danger-line: rgba(240, 90, 105, 0.34);
+
+  --tone-accent-fg: #c79bf0;
+  --tone-accent-bg: rgba(178, 128, 232, 0.15);
+  --tone-accent-line: rgba(178, 128, 232, 0.34);
+
+  /* ── shape & depth ─────────────────────────────────────────────────────── */
+  --r-xs: 6px;
+  --r-sm: 8px;
+  --r-md: 11px;
+  --r-lg: 15px;
+  --r-xl: 22px;
+  --r-pill: 999px;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.32);
+  --shadow-md: 0 6px 20px -6px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.28);
+  --shadow-lg: 0 24px 60px -18px rgba(0, 0, 0, 0.66), 0 6px 18px rgba(0, 0, 0, 0.34);
+  --shadow-glow: 0 0 0 1px var(--accent-line), 0 8px 30px -10px rgba(47, 191, 155, 0.42);
+
+  /* ── spacing scale ─────────────────────────────────────────────────────── */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-7: 32px;
+  --s-8: 40px;
+  --s-9: 56px;
+
+  /* ── typography ────────────────────────────────────────────────────────── */
+  --font: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --t-2xs: 10.5px;
+  --t-xs: 11.5px;
+  --t-sm: 12.5px;
+  --t-base: 13.5px;
+  --t-md: 15px;
+  --t-lg: 18px;
+  --t-xl: 23px;
+  --t-2xl: 30px;
+  --t-3xl: 40px;
+
+  /* ── layout ────────────────────────────────────────────────────────────── */
+  --sidebar-w: 246px;
+  --sidebar-w-collapsed: 66px;
+  --topbar-h: 58px;
+  --row-h: 42px;
+  --control-h: 34px;
+
+  --ease: cubic-bezier(0.22, 0.9, 0.3, 1);
+  --dur: 160ms;
+}
+
+/* Comfortable is the default; compact packs more rows onto a floor monitor. */
+:root[data-density='compact'] {
+  --row-h: 34px;
+  --control-h: 30px;
+  --s-4: 12px;
+  --s-5: 16px;
+  --s-6: 18px;
+}
+
+/* ── light theme ─────────────────────────────────────────────────────────── */
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --bg: #eef2f8;
+  --surface-0: #ffffff;
+  --surface-1: #ffffff;
+  --surface-2: #f6f8fc;
+  --surface-3: #eef2f9;
+  --surface-inset: #f2f5fa;
+  --surface-glass: rgba(255, 255, 255, 0.86);
+
+  --line: #dce3ee;
+  --line-soft: #e8edf5;
+  --line-strong: #c3cede;
+
+  --text: #16233a;
+  --text-strong: #0a1424;
+  --text-muted: #5a6a85;
+  --text-faint: #8494ab;
+  --text-inverse: #ffffff;
+
+  --accent: #148069;
+  --accent-soft: rgba(20, 128, 105, 0.1);
+  --accent-line: rgba(20, 128, 105, 0.26);
+  --accent-text: #0f6b57;
+  --accent-contrast: #ffffff;
+
+  --gold: #a97a15;
+  --gold-soft: rgba(200, 151, 42, 0.14);
+
+  --tone-neutral-fg: #55637a;
+  --tone-neutral-bg: rgba(85, 99, 122, 0.09);
+  --tone-neutral-line: rgba(85, 99, 122, 0.2);
+
+  --tone-info-fg: #1d5fc4;
+  --tone-info-bg: rgba(29, 95, 196, 0.09);
+  --tone-info-line: rgba(29, 95, 196, 0.22);
+
+  --tone-progress-fg: #4b52c9;
+  --tone-progress-bg: rgba(75, 82, 201, 0.09);
+  --tone-progress-line: rgba(75, 82, 201, 0.22);
+
+  --tone-success-fg: #0f7a4e;
+  --tone-success-bg: rgba(15, 122, 78, 0.1);
+  --tone-success-line: rgba(15, 122, 78, 0.22);
+
+  --tone-warning-fg: #9a6a05;
+  --tone-warning-bg: rgba(180, 126, 10, 0.12);
+  --tone-warning-line: rgba(180, 126, 10, 0.26);
+
+  --tone-danger-fg: #bd2733;
+  --tone-danger-bg: rgba(189, 39, 51, 0.09);
+  --tone-danger-line: rgba(189, 39, 51, 0.22);
+
+  --tone-accent-fg: #7238ad;
+  --tone-accent-bg: rgba(114, 56, 173, 0.09);
+  --tone-accent-line: rgba(114, 56, 173, 0.22);
+
+  --shadow-sm: 0 1px 2px rgba(16, 34, 58, 0.07);
+  --shadow-md: 0 6px 18px -8px rgba(16, 34, 58, 0.22), 0 1px 4px rgba(16, 34, 58, 0.06);
+  --shadow-lg: 0 24px 56px -20px rgba(16, 34, 58, 0.28), 0 4px 14px rgba(16, 34, 58, 0.08);
+  --shadow-glow: 0 0 0 1px var(--accent-line), 0 8px 26px -12px rgba(20, 128, 105, 0.4);
+}
