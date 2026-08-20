@@ -733,7 +733,8 @@ export function seed(db, { verbose = true } = {}) {
         unitCost: item.costPerUom,
         receivedAt: daysAgo(receivedDaysAgo),
         manufacturedAt: daysAgo(receivedDaysAgo + int(10, 60)),
-        expiresAt: expires,
+        // packaging does not expire; only material with a shelf life carries a date
+        expiresAt: isPackaging ? null : expires,
         retestAt: isPackaging ? null : daysAhead(365 - receivedDaysAgo),
         coaReceived: !item.requiresCoa || status !== 'quarantine',
         testResults: item.requiresCoa && status === 'released' ? [

@@ -85,7 +85,11 @@ export function inventoryRouter(db) {
   router.get('/positions', route((req, res) => {
     const options = queryOptions(req, ['name', 'itemCode', 'category', 'form', 'tags']);
     const expiryWarningDays = num(setting('inventory.expiryWarningDays', 90), 90);
-    const { rows, total } = db.query('items', { ...options, where: { active: true, ...(options.where ?? {}) } });
+    const { rows, total } = db.query('items', {
+      ...options,
+      sort: options.sort ?? 'name',
+      where: { active: true, ...(options.where ?? {}) },
+    });
     const positions = rows.map((item) => itemPosition(db, item, { expiryWarningDays }));
 
     const filter = req.query.alert;
@@ -145,8 +149,11 @@ export function inventoryRouter(db) {
       const quarantine = tx.findOne('locations', { code: 'QUAR-01' });
       const locationId = req.body.locationId || (item.requiresCoa ? quarantine?.id : item.defaultLocationId) || item.defaultLocationId;
       const receivedAt = req.body.receivedAt ?? new Date().toISOString();
+      // packaging has no shelf life, so it carries no expiry unless one is given
       const expiresAt = req.body.expiresAt
-        ?? new Date(Date.parse(receivedAt) + (item.shelfLifeDays || 730) * DAY).toISOString();
+        ?? (item.type === 'packaging'
+          ? null
+          : new Date(Date.parse(receivedAt) + (item.shelfLifeDays || 730) * DAY).toISOString());
 
       const lot = tx.insert('lots', {
         lotNumber: req.body.lotNumber || tx.nextSequence('LOT', 'L{yy}-{n:5}'),

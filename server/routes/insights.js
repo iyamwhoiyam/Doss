@@ -75,7 +75,7 @@ export function insightsRouter(db) {
         },
         {
           key: 'yield', label: 'Average yield (30d)', value: yields.length ? `${(yields.reduce((a, b) => a + b, 0) / yields.length).toFixed(1)}%` : '—',
-          detail: `${completed30.length} batches released`, tone: 'success', link: '/production',
+          detail: `${completed30.length} batch${completed30.length === 1 ? '' : 'es'} released`, tone: 'success', link: '/production',
         },
         {
           key: 'inventory_alerts', label: 'Inventory alerts', value: inventoryAlerts.length,
