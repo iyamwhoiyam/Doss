@@ -143,7 +143,7 @@ export function Admin() {
     <div className="page page-wide">
       <PageHeader
         title="Admin"
-        subtitle={`${number(health.database.totalRecords)} records · ${health.database.bytesHuman} on disk · ${health.realtime.online} people online`}
+        subtitle={`${number(health.database.totalRecords)} records · ${health.database.bytesHuman} on disk · ${health.realtime.online} ${health.realtime.online === 1 ? 'person' : 'people'} online`}
         actions={
           <>
             <button type="button" className="btn" onClick={checkpoint}><Icon name="save" size={13} /> Checkpoint</button>
@@ -205,8 +205,8 @@ export function Admin() {
                       { label: 'Pending writes', value: health.database.pendingWrites },
                       { label: 'Writes since boot', value: number(health.database.writesSinceBoot) },
                       { label: 'Uploaded files', value: `${number(health.files.files)} · ${health.files.bytesHuman}` },
-                      { label: 'Audit log', value: `${number(health.audit.files)} days · ${health.audit.bytesHuman}` },
-                      { label: 'Backups', value: `${health.database.backups.count} sets · ${health.backups.bytesHuman}` },
+                      { label: 'Audit log', value: `${number(health.audit.files)} ${health.audit.files === 1 ? 'day' : 'days'} · ${health.audit.bytesHuman}` },
+                      { label: 'Backups', value: `${health.database.backups.count} ${health.database.backups.count === 1 ? 'set' : 'sets'} · ${health.backups.bytesHuman}` },
                       { label: 'Latest backup', value: health.database.backups.latest ? relative(health.database.backups.latest.replace(/-(\d{2})-(\d{2})-(\d{3})Z$/, ':$1:$2.$3Z')) : 'none yet' },
                     ]}
                   />

@@ -996,7 +996,7 @@ export function seed(db, { verbose = true } = {}) {
       effectiveDate: daysAgo(int(10, 400)),
       expiresAt: extra.expiresAt ?? (['certificate', 'insurance', 'coa'].includes(category) ? daysAhead(int(-30, 400)) : null),
       reviewerId: userFor('quality').id,
-      approvedBy: byRole('quality')[0].id,
+      approvedBy: userFor('quality').id,
       approvedAt: daysAgo(int(5, 300)),
       description: extra.description ?? '',
       confidential: category === 'contract',

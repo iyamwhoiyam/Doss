@@ -196,7 +196,17 @@ Configuration is by environment variable, all optional:
 | `API_ORIGIN` | `http://127.0.0.1:4000` | Dev-server proxy target |
 | `NODE_ENV` | — | `production` sets a secure session cookie |
 
-The test suite boots a real server against a throwaway data directory and drives
+There is also a browser smoke test that drives the real application — signing
+in, dragging a work order across the board, watching a formula re-price, hitting
+the guard rails — against a running server:
+
+```bash
+npx playwright install chromium
+DATA_DIR=/tmp/enova-smoke PORT=4200 node server/index.js &
+node scripts/browser-smoke.mjs
+```
+
+The unit and API suite boots a real server against a throwaway data directory and drives
 the real flows — signing in, dragging a work order, issuing material against a
 lot, pricing a quote, running a label review, receiving against a purchase
 order — so a passing suite means the platform works, not that the units do.

@@ -79,14 +79,18 @@ export function Documents() {
         <div className="cell-sub">{row.ownerType}</div>
       </div>
     ) },
-    { key: 'status', header: 'Status', sortValue: (row) => row.status, render: (row) => <StatusBadge list={DOCUMENT_STATUS} value={row.status} /> },
+    { key: 'status', header: 'Status', sortValue: (row) => row.status, render: (row) => (
+      <div>
+        <StatusBadge list={DOCUMENT_STATUS} value={row.status} />
+        <div className="cell-sub truncate">{row.approvedBy ? users.name(row.approvedBy) : 'not approved'}</div>
+      </div>
+    ) },
     { key: 'expires', header: 'Expires', sortValue: (row) => row.expiresAt ?? '', render: (row) => {
       const days = daysUntil(row.expiresAt);
       if (days === null) return <span className="faint">—</span>;
       return <Badge tone={days < 0 ? 'danger' : days < 45 ? 'warning' : 'neutral'}>{days < 0 ? `expired ${Math.abs(days)}d ago` : `${days} d`}</Badge>;
     } },
-    { key: 'approved', header: 'Approved', render: (row) => (row.approvedBy ? `${users.name(row.approvedBy)}` : <span className="faint">not approved</span>) },
-    { key: 'updated', header: 'Updated', sortValue: (row) => row.updatedAt, render: (row) => relative(row.updatedAt) },
+    { key: 'updated', header: 'Updated', align: 'right', sortValue: (row) => row.updatedAt, render: (row) => <span className="nowrap cell-sub">{relative(row.updatedAt)}</span> },
   ];
 
   const sweep = async () => {
