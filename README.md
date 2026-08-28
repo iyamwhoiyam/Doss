@@ -37,6 +37,7 @@ npm run build && npm start   # one process on :4000, serving the built app
 | --- | --- |
 | **Dashboard** | Live KPIs, the floor by stage, twelve weeks of throughput, everything that needs attention, your own work, the activity stream |
 | **Production** | Drag-and-drop stage board, electronic batch records, material issue against specific lots, in-process QC checks, deviations, QA release |
+| **Schedule** | Line-by-line planning timeline — drag a batch onto a line and a day to reschedule it, with daily capacity load and a tray of batches awaiting a slot |
 | **Inventory** | On-hand by item and lot, receiving, QA disposition, adjustments, transfers, cycle counts, reorder and expiry alerts, full lot genealogy |
 | **Vendors & POs** | Vendor qualification and scorecards, purchase order lifecycle, receiving against a PO, reorder suggestions that draft POs per vendor |
 | **Development** | Stage-gated project pipeline with milestones, gate checks, requirements and risks |
@@ -181,7 +182,7 @@ Every one of those overrides is written into the record and the audit trail.
 
 ```bash
 npm run dev          # API + app with hot reload
-npm test             # 86 tests: db engine, both calculators, the HTTP API
+npm test             # 87 tests: db engine, both calculators, the HTTP API
 npm run typecheck    # tsc --noEmit
 npm run build        # typecheck + production bundle
 npm run seed         # rebuild the database from scratch (--force)
@@ -197,8 +198,9 @@ Configuration is by environment variable, all optional:
 | `NODE_ENV` | — | `production` sets a secure session cookie |
 
 There is also a browser smoke test that drives the real application — signing
-in, dragging a work order across the board, watching a formula re-price, hitting
-the guard rails — against a running server:
+in, dragging a work order across the board, rescheduling a batch onto a
+production line, watching a formula re-price, hitting the guard rails — against a
+running server:
 
 ```bash
 npx playwright install chromium

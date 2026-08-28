@@ -21,9 +21,21 @@
 
 import { chromium } from 'playwright';
 const base = process.env.BASE_URL ?? 'http://127.0.0.1:4200';
-const browser = await chromium.launch(
-  process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {},
-);
+const browser = await chromium.launch({
+  ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}),
+  // Keep Chromium from reaching out to Google for fonts, autofill, component and
+  // safe-browsing updates — in a locked-down/offline runner those calls hang and
+  // the whole run stalls. The app itself needs no network beyond its own origin.
+  args: [
+    // --disable-dev-shm-usage keeps Chromium off the container's tiny /dev/shm,
+    // which otherwise crashes the renderer mid-run ("browser has been closed").
+    '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage',
+    '--no-first-run', '--no-default-browser-check',
+    '--disable-background-networking', '--disable-component-update',
+    '--disable-sync', '--disable-domain-reliability',
+    '--disable-features=Translate,OptimizationHints,MediaRouter,AutofillServerCommunication',
+  ],
+});
 const page = await browser.newPage({ viewport: { width: 2560, height: 1100 } });
 const fails = [];
 const check = (ok, label) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}`); if (!ok) fails.push(label); };
@@ -132,6 +144,36 @@ const approve = page.locator('button', { hasText: 'Approve' }).first();
 const approveDisabled = await approve.isDisabled().catch(() => null);
 const undecided = await page.locator('.badge', { hasText: 'undecided' }).count();
 check(undecided === 0 || approveDisabled === true, 'approve is blocked while findings are undecided');
+
+// ── schedule an awaiting-a-slot batch by dragging it onto a lane ────────────
+await page.goto(`${base}/schedule`, { waitUntil: 'domcontentloaded' });
+await page.waitForSelector('.sched-grid', { timeout: 15000 });
+await page.waitForTimeout(900);
+const trayBefore = await page.locator('.sched-tray-card').count();
+if (trayBefore > 0) {
+  const card = page.locator('.sched-tray-card').first();
+  const cell = page.locator('.sched-cell').first();
+  const cardBox = await card.boundingBox();
+  const cellBox = await cell.boundingBox();
+  if (cardBox && cellBox) {
+    await page.mouse.move(cardBox.x + cardBox.width / 2, cardBox.y + cardBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(cellBox.x + cellBox.width / 2, cellBox.y + cellBox.height / 2, { steps: 12 });
+    await page.mouse.move(cellBox.x + cellBox.width / 2 + 4, cellBox.y + cellBox.height / 2, { steps: 3 });
+    await page.mouse.up();
+    await page.waitForTimeout(1500);
+  }
+  const trayAfter = await page.locator('.sched-tray-card').count();
+  check(trayAfter === trayBefore - 1, `scheduling a batch removes it from the tray (${trayBefore} -> ${trayAfter})`);
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('.sched-grid', { timeout: 15000 });
+  await page.waitForTimeout(900);
+  const trayPersisted = await page.locator('.sched-tray-card').count();
+  check(trayPersisted === trayBefore - 1, 'the schedule move persists across a reload');
+} else {
+  check(true, 'schedule tray already empty — nothing to place (skipped)');
+}
 
 console.log(fails.length ? `\n${fails.length} CHECK(S) FAILED` : '\nall checks passed');
 await browser.close();

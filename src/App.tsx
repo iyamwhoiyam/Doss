@@ -9,6 +9,7 @@ import { Login } from './pages/Login';
 const Dashboard = lazy(() => import('./pages/Dashboard').then((m) => ({ default: m.Dashboard })));
 const MyWork = lazy(() => import('./pages/MyWork').then((m) => ({ default: m.MyWork })));
 const Production = lazy(() => import('./pages/Production').then((m) => ({ default: m.Production })));
+const Schedule = lazy(() => import('./pages/Schedule').then((m) => ({ default: m.Schedule })));
 const WorkOrderDetail = lazy(() => import('./pages/WorkOrderDetail').then((m) => ({ default: m.WorkOrderDetail })));
 const Inventory = lazy(() => import('./pages/Inventory').then((m) => ({ default: m.Inventory })));
 const ItemDetail = lazy(() => import('./pages/ItemDetail').then((m) => ({ default: m.ItemDetail })));
@@ -55,6 +56,7 @@ export function App() {
           <Route path="/my-work" element={<MyWork />} />
 
           <Route path="/production" element={<Production />} />
+          <Route path="/schedule" element={<Schedule />} />
           <Route path="/production/:id" element={<WorkOrderDetail />} />
 
           <Route path="/inventory" element={<Inventory />} />

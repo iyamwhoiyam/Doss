@@ -54,6 +54,97 @@ export function productionRouter(db) {
   }));
 
   /**
+   * The schedule: work orders laid out across production lines and a date
+   * window. The board answers "what stage is everything at"; the schedule
+   * answers "when, and on which line, does it run" — so this is a separate view
+   * over the same records, not a second copy of them.
+   */
+  router.get('/schedule', route((req, res) => {
+    const span = Math.min(35, Math.max(7, num(req.query.days, 14)));
+    // Anchor on the Monday of the requested (or current) week so the grid always
+    // starts on a weekday and two people looking at "this week" see the same one.
+    const anchor = req.query.start ? new Date(`${req.query.start}T00:00:00Z`) : new Date();
+    const start = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), anchor.getUTCDate()));
+    if (!req.query.start) start.setUTCDate(start.getUTCDate() - ((start.getUTCDay() + 6) % 7));
+    const end = new Date(start);
+    end.setUTCDate(end.getUTCDate() + span);
+
+    const days = [];
+    for (let i = 0; i < span; i++) {
+      const d = new Date(start);
+      d.setUTCDate(d.getUTCDate() + i);
+      const dow = d.getUTCDay();
+      days.push({ date: d.toISOString().slice(0, 10), weekend: dow === 0 || dow === 6 });
+    }
+
+    const linesSetting = db.findOne('settings', { key: 'production.lines' })?.value ?? [];
+    const active = db.find('workOrders').filter((wo) => wo.stage !== 'cancelled');
+    const inUse = [...new Set(active.map((wo) => wo.line).filter(Boolean))];
+    const lines = [...new Set([...(Array.isArray(linesSetting) ? linesSetting : []), ...inUse])];
+
+    const slim = (wo) => ({
+      id: wo.id, woNumber: wo.woNumber, batchNumber: wo.batchNumber, productName: wo.productName,
+      customerId: wo.customerId, formulaId: wo.formulaId, line: wo.line, stage: wo.stage,
+      priority: wo.priority, plannedQty: wo.plannedQty, uom: wo.uom, supervisorId: wo.supervisorId,
+      plannedStart: wo.plannedStart, plannedEnd: wo.plannedEnd,
+    });
+
+    const overlapsWindow = (wo) => {
+      if (!wo.plannedStart) return false;
+      const s = new Date(wo.plannedStart);
+      const e = wo.plannedEnd ? new Date(wo.plannedEnd) : s;
+      return e >= start && s < end;
+    };
+
+    // Anything finished has left the schedule; anything without a line or a start
+    // date is waiting to be placed.
+    const open = active.filter((wo) => wo.stage !== 'complete');
+    const scheduled = open.filter((wo) => wo.line && overlapsWindow(wo)).map(slim);
+    const unscheduled = open.filter((wo) => !wo.line || !wo.plannedStart).map(slim);
+
+    res.json({
+      start: start.toISOString().slice(0, 10),
+      span,
+      days,
+      lines,
+      scheduled,
+      unscheduled,
+    });
+  }));
+
+  /**
+   * Reschedule a work order: drop it onto a line and a day. This is a planning
+   * move, not a stage move — it never changes what stage the batch is at, only
+   * where and when it runs.
+   */
+  router.post('/:id/schedule', requirePermission('production.write'), route((req, res) => {
+    const wo = db.getOrFail('workOrders', req.params.id);
+    const ctx = actorContext(req);
+    const patch = {};
+    if (req.body?.line !== undefined) patch.line = req.body.line;
+    if (req.body?.plannedStart !== undefined) patch.plannedStart = req.body.plannedStart;
+    if (req.body?.plannedEnd !== undefined) patch.plannedEnd = req.body.plannedEnd;
+
+    const start = patch.plannedStart !== undefined ? patch.plannedStart : wo.plannedStart;
+    const finish = patch.plannedEnd !== undefined ? patch.plannedEnd : wo.plannedEnd;
+    if (start && finish && new Date(finish) < new Date(start)) {
+      throw new HttpError(422, 'Planned end cannot fall before planned start');
+    }
+
+    const updated = db.update('workOrders', wo.id, patch, ctx);
+    logActivity(db, req, {
+      type: 'work_order',
+      title: `${wo.woNumber} scheduled`,
+      detail: `${wo.productName}${patch.line ? ` · ${patch.line}` : ''}${start ? ` · ${new Date(start).toISOString().slice(0, 10)}` : ''}`,
+      tone: 'progress',
+      refType: 'workOrder',
+      refId: wo.id,
+      link: `/production/${wo.id}`,
+    });
+    res.json(updated);
+  }));
+
+  /**
    * Move a card. Handles both a stage change and a reorder inside a column, and
    * applies the side effects each stage transition carries.
    */

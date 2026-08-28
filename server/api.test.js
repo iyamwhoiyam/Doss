@@ -433,6 +433,33 @@ test('board moves persist column and order, and a gated stage is protected', asy
   assert.ok(doneTask.completedAt);
 });
 
+test('the schedule lays work orders out by line and date, and rescheduling moves one', async () => {
+  const schedule = await get('/api/production/schedule');
+  assert.equal(schedule.days.length, 14, 'the default window is a fortnight');
+  assert.equal(new Date(`${schedule.start}T00:00:00Z`).getUTCDay(), 1, 'the window anchors on a Monday');
+  assert.ok(Array.isArray(schedule.lines) && schedule.lines.length > 0);
+  assert.ok(Array.isArray(schedule.scheduled));
+  assert.ok(Array.isArray(schedule.unscheduled));
+  // a released batch has left the floor and does not appear on the schedule
+  assert.ok(!schedule.scheduled.some((wo) => wo.stage === 'complete'));
+
+  // drop a work order onto a specific line and the first day of the window
+  const wo = db.find('workOrders', { stage: { $nin: ['complete', 'cancelled'] } })[0];
+  const targetLine = schedule.lines[0];
+  const plannedStart = `${schedule.days[1].date}T08:00:00.000Z`;
+  const moved = await post(`/api/production/${wo.id}/schedule`, { line: targetLine, plannedStart });
+  assert.equal(moved.line, targetLine);
+  assert.equal(moved.plannedStart, plannedStart);
+
+  const after = await get('/api/production/schedule');
+  assert.ok(after.scheduled.some((row) => row.id === wo.id && row.line === targetLine));
+
+  // an end before the start is refused and nothing changes
+  const bad = await api('POST', `/api/production/${wo.id}/schedule`, { plannedEnd: `${schedule.days[0].date}T08:00:00.000Z` }, { raw: true });
+  assert.equal(bad.status, 422);
+  assert.match(bad.body.error, /before planned start/);
+});
+
 test('a non-admin role is blocked from writes it does not own', async () => {
   await post('/api/auth/logout');
   await post('/api/auth/login', { email: 'mbell@enovascience.com', password: 'enova2026' }); // warehouse

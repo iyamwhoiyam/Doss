@@ -852,6 +852,9 @@ export function seed(db, { verbose = true } = {}) {
     const done = stage === 'complete';
     const started = !['planned', 'released'].includes(stage);
     const actualQty = done ? Math.round(plannedQty * money(0.92, 1.01, 4)) : 0;
+    // A couple of freshly-planned batches arrive without a line or a start date —
+    // they sit in the schedule's "awaiting a slot" tray until someone places them.
+    const awaitingSlot = stage === 'planned' && (i === 1 || i === 2);
 
     const materials = [...formula.actives, ...formula.excipients].slice(0, 8).map((ing) => {
       const item = items.find((it) => it.id === ing.itemId);
@@ -892,7 +895,7 @@ export function seed(db, { verbose = true } = {}) {
       formulaId: formula.id,
       customerId: so.customerId,
       salesOrderId: so.id,
-      line: pick({
+      line: awaitingSlot ? '' : pick({
         gummy: ['Gummy Line 1', 'Gummy Line 2'],
         capsule: ['Encapsulation 1', 'Encapsulation 2'],
         softgel: ['Encapsulation 1', 'Encapsulation 2'],
@@ -904,8 +907,8 @@ export function seed(db, { verbose = true } = {}) {
       plannedQty,
       actualQty,
       uom: 'ea',
-      plannedStart: daysAgo(int(-25, 25)),
-      plannedEnd: daysAhead(int(-15, 35)),
+      plannedStart: awaitingSlot ? null : daysAgo(int(-25, 25)),
+      plannedEnd: awaitingSlot ? null : daysAhead(int(-15, 35)),
       actualStart: started ? daysAgo(int(1, 20)) : null,
       // completed batches are spread across the quarter so the throughput chart
       // shows a real production history rather than one recent spike
