@@ -556,3 +556,73 @@ test('the data on disk is plain, readable JSON', async () => {
   assert.ok(snapshot.records.some((r) => r.code === 'F-4001'));
   assert.ok(snapshot.savedAt);
 });
+
+async function postCsv(url, csv, filename = 'data.csv') {
+  const form = new FormData();
+  form.append('file', new Blob([csv], { type: 'text/csv' }), filename);
+  const res = await fetch(`${base}${url}`, {
+    method: 'POST',
+    headers: cookies.size ? { Cookie: jar() } : {},
+    body: form,
+  });
+  return { status: res.status, body: await res.json() };
+}
+
+test('the CSV importer previews without writing, then commits and upserts', async () => {
+  await post('/api/auth/logout');
+  await post('/api/auth/login', { email: 'jbradfield@enovascience.com', password: 'enova2026' });
+
+  const csv = 'Name,Email,Role,Title\nMaria Lopez,mlopez@enovascience.com,quality,QA Analyst\nBad Row,not-an-email,quality,\n';
+
+  // dry run: reports one create and one error, writes nothing
+  const preview = await postCsv('/api/import/users', csv);
+  assert.equal(preview.status, 200);
+  assert.equal(preview.body.committed, false);
+  assert.equal(preview.body.create, 1);
+  assert.equal(preview.body.errors, 1);
+  assert.equal(db.findOne('users', { email: 'mlopez@enovascience.com' }), null);
+
+  // commit: the valid row lands, the bad one is skipped
+  const commit = await postCsv('/api/import/users?commit=true', csv);
+  assert.equal(commit.body.committed, true);
+  assert.equal(commit.body.create, 1);
+  const created = db.findOne('users', { email: 'mlopez@enovascience.com' });
+  assert.ok(created, 'the valid row was imported');
+  assert.equal(created.mustChangePassword, true, 'imported users must set their own password');
+
+  // re-importing the same key updates in place rather than duplicating
+  const again = await postCsv('/api/import/users?commit=true', 'Name,Email,Role,Title\nMaria Lopez,mlopez@enovascience.com,quality,Senior QA\n');
+  assert.equal(again.body.update, 1);
+  assert.equal(again.body.create, 0);
+  assert.equal(db.find('users', { email: 'mlopez@enovascience.com' }).length, 1);
+  assert.equal(db.findOne('users', { email: 'mlopez@enovascience.com' }).title, 'Senior QA');
+});
+
+test('an import template downloads as a CSV with the right columns', async () => {
+  const res = await fetch(`${base}/api/import/items/template`, { headers: { Cookie: jar() } });
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /csv/);
+  const text = await res.text();
+  assert.match(text.split('\n')[0], /Item Code,Name,Type/);
+});
+
+// Runs last: it clears the database, so nothing may depend on data after it.
+test('reset clears the demo data, keeps settings, and keeps me signed in', async () => {
+  await post('/api/auth/logout');
+  await post('/api/auth/login', { email: 'jbradfield@enovascience.com', password: 'enova2026' });
+
+  const guard = await api('POST', '/api/admin/reset', {}, { raw: true });
+  assert.equal(guard.status, 400, 'reset needs the typed confirmation');
+
+  const done = await post('/api/admin/reset', { confirm: 'ERASE' });
+  assert.equal(done.ok, true);
+  assert.equal(db.count('workOrders'), 0);
+  assert.equal(db.count('formulas'), 0);
+  assert.equal(db.count('customers'), 0);
+
+  assert.ok(db.findOne('users', { email: 'jbradfield@enovascience.com' }), 'the account performing the reset survives');
+  assert.ok(db.count('settings') > 0, 'settings are kept');
+
+  const me = await get('/api/auth/me');
+  assert.equal(me.user.email, 'jbradfield@enovascience.com', 'still signed in after the reset');
+});

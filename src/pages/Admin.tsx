@@ -160,6 +160,7 @@ export function Admin() {
           { value: 'people', label: 'People', count: users?.total ?? null, icon: 'users' },
           { value: 'access', label: 'Sessions', count: sessions?.rows.length ?? null, icon: 'lock' },
           { value: 'settings', label: 'Settings', count: settings?.total ?? null, icon: 'sliders' },
+          { value: 'import', label: 'Import data', icon: 'upload' },
           { value: 'audit', label: 'Audit trail', icon: 'history' },
         ]}
       />
@@ -302,6 +303,8 @@ export function Admin() {
             ))}
           </div>
         )}
+
+        {tab === 'import' && <ImportPanel />}
 
         {tab === 'audit' && (
           <Card>
@@ -465,5 +468,200 @@ function NewUser({ open, onClose, onCreated }: { open: boolean; onClose: () => v
         </div>
       )}
     </Modal>
+  );
+}
+
+interface ImportType {
+  type: string; label: string; collection: string; keyHeader: string; blurb: string;
+  columns: { header: string; field: string; required?: boolean; note?: string }[];
+}
+interface ImportRow { line: number; action: 'create' | 'update' | 'error'; key?: string; message?: string }
+interface ImportSummary { type: string; collection: string; committed: boolean; total: number; create: number; update: number; errors: number; rows: ImportRow[] }
+
+function ImportPanel() {
+  const { error, success } = useUi();
+  const queryClient = useQueryClient();
+  const { data } = useQuery<{ types: ImportType[] }>({ queryKey: ['import', 'types'], queryFn: () => api.get('/import') });
+  const [type, setType] = useState('');
+  const [preview, setPreview] = useState<ImportSummary | null>(null);
+  const [fileName, setFileName] = useState('');
+  const [pendingCsv, setPendingCsv] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const types = data?.types ?? [];
+  const chosen = types.find((t) => t.type === type);
+
+  const reset = () => { setPreview(null); setFileName(''); setPendingCsv(null); };
+
+  const onFile = async (file: File | undefined) => {
+    if (!file || !type) return;
+    setFileName(file.name);
+    setPendingCsv(file);
+    setBusy(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const summary = await api.upload<ImportSummary>(`/import/${type}`, form); // dry run
+      setPreview(summary);
+    } catch (err) { error(err, 'Could not read that file'); reset(); } finally { setBusy(false); }
+  };
+
+  const commit = async () => {
+    if (!pendingCsv || !type) return;
+    setBusy(true);
+    try {
+      const form = new FormData();
+      form.append('file', pendingCsv);
+      const result = await api.upload<ImportSummary>(`/import/${type}?commit=true`, form);
+      success('Import complete', `${result.create} created, ${result.update} updated${result.errors ? `, ${result.errors} skipped` : ''}.`);
+      queryClient.invalidateQueries({ queryKey: ['collection', result.collection] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'health'] });
+      reset();
+    } catch (err) { error(err, 'Import failed'); } finally { setBusy(false); }
+  };
+
+  const cols: Column<ImportRow>[] = [
+    { key: 'line', header: 'Row', numeric: true, render: (r) => r.line },
+    { key: 'action', header: 'Action', render: (r) => (
+      <Badge tone={r.action === 'create' ? 'success' : r.action === 'update' ? 'info' : 'danger'}>{r.action}</Badge>
+    ) },
+    { key: 'key', header: 'Key', render: (r) => <span className="mono cell-sub">{r.key || '—'}</span> },
+    { key: 'message', header: 'Detail', render: (r) => <span className="cell-sub">{r.message || (r.action === 'create' ? 'New record' : 'Updates existing')}</span> },
+  ];
+
+  return (
+    <div className="col" style={{ gap: 'var(--s-5)' }}>
+      <Card>
+        <CardHead title="Import from a spreadsheet" subtitle="Load your real data in bulk. Pick a type, download the template, fill it in Excel, save as CSV, and upload." icon="upload" />
+        <div className="card-body col" style={{ gap: 'var(--s-4)' }}>
+          <div className="field-row">
+            <Field label="What are you importing?">
+              <Select
+                value={type}
+                onChange={(next) => { setType(next); reset(); }}
+                allowEmpty
+                placeholder="Choose a data type…"
+                options={types.map((t) => ({ value: t.type, label: t.label }))}
+              />
+            </Field>
+            {chosen && (
+              <Field label="Template">
+                <a className="btn" href={`/api/import/${chosen.type}/template`} download>
+                  <Icon name="download" size={14} /> Download {chosen.type} template
+                </a>
+              </Field>
+            )}
+          </div>
+
+          {chosen && (
+            <>
+              <Flag tone="info" title={chosen.blurb} detail={`Rows are matched to existing records by ${chosen.keyHeader}, so re-uploading a corrected sheet updates in place instead of duplicating.`} />
+              <div className="cell-sub">
+                <strong>Columns:</strong>{' '}
+                {chosen.columns.map((c) => (
+                  <span key={c.header} title={c.note}>
+                    {c.header}{c.required ? '*' : ''}{c.note ? ` (${c.note})` : ''}
+                    {c === chosen.columns[chosen.columns.length - 1] ? '' : ' · '}
+                  </span>
+                ))}
+              </div>
+
+              <div className="row" style={{ alignItems: 'center', gap: 'var(--s-3)' }}>
+                <label className="btn btn-primary" style={{ cursor: 'pointer' }}>
+                  <Icon name="upload" size={14} /> {fileName ? 'Choose a different file' : 'Upload CSV'}
+                  <input
+                    type="file"
+                    accept=".csv,text/csv"
+                    hidden
+                    onChange={(e) => onFile(e.target.files?.[0])}
+                  />
+                </label>
+                {fileName && <span className="cell-sub">{fileName}</span>}
+                {busy && <span className="spinner" />}
+              </div>
+            </>
+          )}
+        </div>
+      </Card>
+
+      {preview && (
+        <Card>
+          <CardHead
+            title="Preview"
+            subtitle={`${preview.total} row${preview.total === 1 ? '' : 's'} · nothing is saved until you confirm`}
+            icon="eye"
+            actions={
+              <div className="row-tight">
+                <Badge tone="success">{preview.create} new</Badge>
+                <Badge tone="info">{preview.update} update</Badge>
+                {preview.errors > 0 && <Badge tone="danger">{preview.errors} skipped</Badge>}
+              </div>
+            }
+          />
+          <DataTable columns={cols} rows={preview.rows.map((r) => ({ ...r, id: String(r.line) }))} />
+          <div className="card-foot">
+            <button type="button" className="btn" onClick={reset}>Cancel</button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={busy || (preview.create + preview.update) === 0}
+              onClick={commit}
+            >
+              {busy ? <span className="spinner" /> : <Icon name="check" size={14} />}{' '}
+              Import {preview.create + preview.update} record{preview.create + preview.update === 1 ? '' : 's'}
+              {preview.errors > 0 ? ` (skip ${preview.errors})` : ''}
+            </button>
+          </div>
+        </Card>
+      )}
+
+      <ResetCard />
+    </div>
+  );
+}
+
+function ResetCard() {
+  const { error, success, confirm } = useUi();
+  const queryClient = useQueryClient();
+  const [phrase, setPhrase] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const run = async () => {
+    const ok = await confirm({
+      title: 'Clear all demo data?',
+      body: 'This permanently removes every seeded customer, vendor, item, formula, work order, quote, project and document — and every user except you. Settings are kept. This cannot be undone.',
+      confirmLabel: 'Erase demo data',
+      tone: 'danger',
+    });
+    if (!ok) return;
+    setBusy(true);
+    try {
+      const result = await api.post<{ removed: Record<string, number> }>('/admin/reset', { confirm: 'ERASE' });
+      const total = Object.values(result.removed).reduce((a, b) => a + b, 0);
+      success('Clean slate ready', `${total} demo records removed. Import your real data above.`);
+      setPhrase('');
+      queryClient.clear();
+    } catch (err) { error(err, 'Reset failed'); } finally { setBusy(false); }
+  };
+
+  return (
+    <Card className="danger-zone">
+      <CardHead title="Danger zone — clear demo data" subtitle="Start from an empty, production-clean database before loading real Enova data." icon="alert" />
+      <div className="card-body col" style={{ gap: 'var(--s-3)' }}>
+        <Flag
+          tone="danger"
+          title="This erases the seeded demo records"
+          detail="Everything except your own account and the settings is removed. Back up first (Database → Back up now) if you want a copy of the demo data."
+        />
+        <div className="row" style={{ alignItems: 'flex-end', gap: 'var(--s-3)' }}>
+          <Field label="Type ERASE to confirm" className="grow">
+            <TextInput value={phrase} onChange={setPhrase} placeholder="ERASE" />
+          </Field>
+          <button type="button" className="btn btn-danger" disabled={busy || phrase !== 'ERASE'} onClick={run}>
+            {busy ? <span className="spinner" /> : <Icon name="trash" size={14} />} Clear demo data
+          </button>
+        </div>
+      </div>
+    </Card>
   );
 }

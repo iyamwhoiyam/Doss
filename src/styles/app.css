@@ -1004,3 +1004,7 @@ a.list-row:hover { text-decoration: none; }
 }
 .sched-tray-card:hover { box-shadow: var(--shadow-sm); }
 .sched-tray-card[data-dragging] { opacity: 0.35; }
+
+/* ── admin danger zone ──────────────────────────────────────────────────────── */
+.danger-zone { border-color: var(--tone-danger-line); }
+.danger-zone .card-head { border-bottom-color: var(--tone-danger-line); }

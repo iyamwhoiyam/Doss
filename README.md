@@ -52,7 +52,7 @@ domain — see **[DEPLOY.md](DEPLOY.md)**. The whole platform runs from
 | **Customers** | Accounts, contacts, the commercial history, and the customer document vault |
 | **Documents** | Versioned document management with expiry tracking and a compliance watchlist |
 | **Orders** | Sales orders through to shipment, tied to the batches that made them |
-| **Admin** | Database health, backups, exports, the audit trail, people, sessions and settings |
+| **Admin** | Database health, backups, exports, the audit trail, people, sessions, settings, spreadsheet import, and a clear-demo-data reset |
 
 Every page updates live. When someone drags a work order across the board, moves
 stock or approves a label, everyone else sees it without refreshing.

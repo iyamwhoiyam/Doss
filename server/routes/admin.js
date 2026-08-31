@@ -13,6 +13,7 @@ import { redact } from '../db/schema.js';
 import { ROLES } from '../../shared/domain.js';
 import { hashPassword, actorContext, requirePermission, HttpError } from '../lib/auth.js';
 import { route, num, requireFields } from '../lib/http.js';
+import { logActivity } from '../lib/events.js';
 
 const bytes = (n) => {
   if (n < 1024) return `${n} B`;
@@ -163,6 +164,49 @@ export function adminRouter(db, hub) {
       category: req.body?.category ?? 'general',
       description: req.body?.description ?? '',
     }, ctx));
+  }));
+
+  /**
+   * Clear the demo/seed data for a clean production start. Wipes every business
+   * collection but keeps the settings and the account performing the reset, so
+   * nobody locks themselves out. Destructive and irreversible — guarded by a
+   * typed confirmation and written to the audit trail.
+   */
+  router.post('/reset', requirePermission('data.manage'), route((req, res) => {
+    if (req.body?.confirm !== 'ERASE') {
+      throw new HttpError(400, 'To clear the demo data, send confirm: "ERASE".');
+    }
+    const WIPE = [
+      'customers', 'vendors', 'items', 'locations', 'lots', 'inventoryTxns', 'cycleCounts',
+      'projects', 'formulas', 'quotes', 'workOrders', 'labelReviews', 'purchaseOrders',
+      'salesOrders', 'shipments', 'documents', 'tasks', 'comments', 'activity',
+      'notifications', 'savedViews',
+    ];
+    const ctx = actorContext(req);
+    const removed = {};
+    for (const collection of WIPE) {
+      if (!db.has(collection)) continue;
+      const rows = db.all(collection, { includeDeleted: true });
+      for (const row of rows) db.purge(collection, row.id, ctx);
+      if (rows.length) removed[collection] = rows.length;
+    }
+    // Remove every other user (and their sessions) but keep the one resetting.
+    let usersRemoved = 0;
+    for (const user of db.all('users', { includeDeleted: true })) {
+      if (user.id === req.user.id) continue;
+      for (const session of db.find('sessions', { userId: user.id })) db.purge('sessions', session.id);
+      db.purge('users', user.id, ctx);
+      usersRemoved += 1;
+    }
+    if (usersRemoved) removed.users = usersRemoved;
+
+    logActivity(db, req, {
+      type: 'admin',
+      title: 'Demo data cleared',
+      detail: `${Object.values(removed).reduce((a, b) => a + b, 0)} records removed — clean production start`,
+      tone: 'warning',
+    });
+    res.json({ ok: true, removed });
   }));
 
   /** Permanently remove an archived record. Deliberately narrow and audited. */
