@@ -13,9 +13,13 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 
-# Build the client bundle (tsc --noEmit && vite build -> dist/).
+# Build the client bundle. We run Vite only (not the type-check) here: type
+# safety is enforced by `npm run typecheck` and the test suite, and skipping it
+# roughly halves the build's memory and time so it completes on a small server.
+# Cap the Node heap so the bundler stays within a 1 GB box's headroom.
 COPY . .
-RUN npm run build
+ENV NODE_OPTIONS=--max-old-space-size=1024
+RUN npm run build:app
 
 # ---- runtime stage ---------------------------------------------------------
 FROM node:20-bookworm-slim AS runtime

@@ -60,7 +60,20 @@ if command -v ufw >/dev/null 2>&1 && ufw status | grep -q "Status: active"; then
   ufw allow 443/tcp >/dev/null || true
 fi
 
-# 5. Build and launch ------------------------------------------------------
+# 5. Swap — a small Droplet does not have the RAM to build the client bundle
+#    on its own, and without swap the build silently thrashes instead of
+#    finishing. Add a 2 GB swap file once, on low-memory machines.
+TOTAL_MB="$(free -m | awk '/^Mem:/{print $2}')"
+if [ "${TOTAL_MB:-0}" -lt 2500 ] && ! swapon --show | grep -q .; then
+  say "Adding a 2 GB swap file (server has ${TOTAL_MB} MB RAM)"
+  fallocate -l 2G /swapfile 2>/dev/null || dd if=/dev/zero of=/swapfile bs=1M count=2048
+  chmod 600 /swapfile
+  mkswap /swapfile >/dev/null
+  swapon /swapfile
+  grep -q '/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
+
+# 6. Build and launch ------------------------------------------------------
 say "Building and starting Enova Ops"
 docker compose up -d --build
 
