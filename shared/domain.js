@@ -386,6 +386,7 @@ export const NAV = [
   { group: 'Overview', items: [
     { to: '/', label: 'Dashboard', icon: 'dashboard' },
     { to: '/my-work', label: 'My work', icon: 'check' },
+    { to: '/reports', label: 'Reports', icon: 'chart', perm: 'cost.view' },
   ] },
   { group: 'Make', items: [
     { to: '/production', label: 'Production', icon: 'factory' },

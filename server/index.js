@@ -36,6 +36,7 @@ import { projectsRouter } from './routes/projects.js';
 import { publicRouter } from './routes/public.js';
 import { samplesRouter } from './routes/samples.js';
 import { rfqsRouter } from './routes/rfqs.js';
+import { reportsRouter } from './routes/reports.js';
 
 import * as domain from '../shared/domain.js';
 
@@ -148,6 +149,7 @@ export function createServer({ dataDir = DATA_DIR, autoSeed = true } = {}) {
   app.use('/api/projects', projectsRouter(db));
   app.use('/api/samples', samplesRouter(db));
   app.use('/api/rfqs', rfqsRouter(db));
+  app.use('/api/reports', reportsRouter(db));
   app.use('/api', insightsRouter(db));
 
   // generic collection API
