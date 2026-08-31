@@ -45,6 +45,10 @@ export const PERMISSIONS = {
   'production.release': ['admin', 'operations', 'quality'],
   'labels.write': ['admin', 'quality', 'rd', 'sales'],
   'labels.approve': ['admin', 'quality', 'executive'],
+  // Product change control: who can send a product for customer approval / lock
+  // it, and who can open a revision once it is customer-approved.
+  'product.lock': ['admin', 'executive', 'sales', 'quality'],
+  'product.revise': ['admin', 'executive', 'rd', 'quality'],
   'tasks.write': ROLE_KEYS,
   'cost.view': ['admin', 'executive', 'operations', 'rd', 'purchasing', 'sales'],
 };
@@ -53,6 +57,15 @@ export function can(role, permission) {
   if (role === 'admin') return true;
   return (PERMISSIONS[permission] ?? []).includes(role);
 }
+
+// A product (a Project and its formula, label and price) is fully editable while
+// `open`, awaits the customer while `pending_approval`, and is frozen as the
+// production-of-record once `locked` — changes then require a new revision.
+export const PRODUCT_LOCK_STATES = [
+  { value: 'open', label: 'In development', tone: 'progress', blurb: 'Fully editable — nothing is committed yet' },
+  { value: 'pending_approval', label: 'Awaiting customer', tone: 'warning', blurb: 'Sent to the customer to review and sign off' },
+  { value: 'locked', label: 'Customer-approved', tone: 'success', blurb: 'Locked as the production-of-record — changes need a revision' },
+];
 
 // ── shared status vocabularies ─────────────────────────────────────────────
 /** Tone drives the colour of a status pill: see `--tone-*` tokens in the CSS. */

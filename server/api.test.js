@@ -557,6 +557,57 @@ test('the data on disk is plain, readable JSON', async () => {
   assert.ok(snapshot.savedAt);
 });
 
+test('a product locks on customer approval and refuses edits until revised', async () => {
+  await post('/api/auth/logout');
+  await post('/api/auth/login', { email: 'jbradfield@enovascience.com', password: 'enova2026' });
+
+  const project = db.find('projects', {}).find((p) => p.formulaId) ?? db.find('projects', {})[0];
+  assert.ok(project, 'there is a project to work with');
+
+  // open by default, and freely editable
+  const before = await get(`/api/data/projects/${project.id}`);
+  assert.equal(before.lockState ?? 'open', 'open');
+  const openEdit = await patch(`/api/data/projects/${project.id}`, { notes: 'edited while open' });
+  assert.equal(openEdit.notes, 'edited while open');
+
+  // recording the customer's approval locks it as the production-of-record
+  const locked = await post(`/api/projects/${project.id}/record-approval`, { signedName: 'Dana Rivera', signedTitle: 'VP Product' });
+  assert.equal(locked.lockState, 'locked');
+  assert.equal(locked.approval.signedName, 'Dana Rivera');
+
+  // the project itself can no longer be edited through the generic API
+  const blockedProject = await api('PATCH', `/api/data/projects/${project.id}`, { notes: 'should be refused' }, { raw: true });
+  assert.equal(blockedProject.status, 409);
+  assert.match(blockedProject.body.error, /locked/i);
+
+  // and neither can its formula, through the formula-specific route
+  const childFormula = db.find('formulas', { projectId: project.id })[0];
+  if (childFormula) {
+    const blockedFormula = await api('POST', `/api/commerce/formulas/${childFormula.id}/approve`, {}, { raw: true });
+    assert.equal(blockedFormula.status, 409, 'a locked product freezes its formula too');
+  }
+
+  // opening a revision reopens it and preserves the approved snapshot
+  const revised = await post(`/api/projects/${project.id}/revise`, { reason: 'customer requested a flavour change' });
+  assert.equal(revised.lockState, 'open');
+  assert.equal(revised.productRevision, (project.productRevision ?? 1) + 1);
+  assert.ok((revised.approvalHistory ?? []).length >= 1, 'the approval is kept in the history');
+
+  // editable again
+  const reopened = await patch(`/api/data/projects/${project.id}`, { notes: 'editing after revise' });
+  assert.equal(reopened.notes, 'editing after revise');
+});
+
+test('opening a revision is limited to the product.revise roles', async () => {
+  const worker = db.find('users', { role: 'production', active: true })[0];
+  assert.ok(worker, 'there is a production user to test with');
+  await post('/api/auth/logout');
+  await post('/api/auth/login', { email: worker.email, password: 'enova2026' });
+  const anyProject = db.find('projects', {})[0];
+  const denied = await api('POST', `/api/projects/${anyProject.id}/revise`, {}, { raw: true });
+  assert.equal(denied.status, 403, 'production cannot open a product revision');
+});
+
 async function postCsv(url, csv, filename = 'data.csv') {
   const form = new FormData();
   form.append('file', new Blob([csv], { type: 'text/csv' }), filename);

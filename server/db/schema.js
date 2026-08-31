@@ -358,6 +358,14 @@ export const schema = {
       formulaId: str('Formula'),
       quoteId: str('Quote'),
       format: str('Format'),
+      // Product change control — the project is the production-of-record for its
+      // formula, label, packaging and price.
+      lockState: { type: 'string', label: 'Lock state', enum: ['open', 'pending_approval', 'locked'], default: 'open' },
+      productRevision: num('Revision', { default: 1 }),
+      approval: obj('Current approval'),
+      approvalHistory: arr('Approval history'),
+      approvalToken: str('Approval link token'),
+      approvalRequestedAt: date('Approval requested'),
       targetLaunch: date('Target launch'),
       brief: str('Brief'),
       requirements: arr('Requirements'),

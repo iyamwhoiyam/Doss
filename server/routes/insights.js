@@ -10,6 +10,7 @@ import {
 } from '../../shared/domain.js';
 import { actorContext, HttpError } from '../lib/auth.js';
 import { route, num } from '../lib/http.js';
+import { assertUnlocked } from '../lib/lock.js';
 import { itemPosition } from './inventory.js';
 import { orderBetween } from './production.js';
 
@@ -251,6 +252,7 @@ export function insightsRouter(db) {
     if (column && !board.stages.includes(column)) throw new HttpError(422, `"${column}" is not a column on this board`);
 
     const record = db.getOrFail(board.collection, id);
+    assertUnlocked(db, board.collection, record);
     const patch = { boardOrder: orderBetween(beforeOrder ?? null, afterOrder ?? null) };
     if (column && column !== record[board.column]) {
       patch[board.column] = column;

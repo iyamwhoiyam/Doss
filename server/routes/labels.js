@@ -14,6 +14,7 @@ import { DSHEA_DISCLAIMER } from '../calc/labelReference.js';
 import { actorContext, requirePermission, HttpError } from '../lib/auth.js';
 import { route, requireFields } from '../lib/http.js';
 import { logActivity, notify } from '../lib/events.js';
+import { assertUnlocked } from '../lib/lock.js';
 
 export function labelsRouter(db) {
   const router = Router();
@@ -88,6 +89,7 @@ export function labelsRouter(db) {
 
   /** Re-run the engine after the copy has been corrected. */
   router.post('/:id/rerun', requirePermission('labels.write'), route((req, res) => {
+    assertUnlocked(db, 'labelReviews', req.params.id);
     const review = db.getOrFail('labelReviews', req.params.id);
     if (review.status === 'released') throw new HttpError(409, 'A released review is a closed record. Open a new revision instead.');
 
@@ -116,6 +118,7 @@ export function labelsRouter(db) {
 
   /** A reviewer's judgement on a single checklist row. */
   router.post('/:id/checklist/:rowId', requirePermission('labels.write'), route((req, res) => {
+    assertUnlocked(db, 'labelReviews', req.params.id);
     const review = db.getOrFail('labelReviews', req.params.id);
     const rowId = Number(req.params.rowId);
     const { state, comment } = req.body ?? {};
@@ -146,6 +149,7 @@ export function labelsRouter(db) {
 
   /** Accept or deny a finding. Nothing is released until every finding has one. */
   router.post('/:id/findings/:findingId', requirePermission('labels.write'), route((req, res) => {
+    assertUnlocked(db, 'labelReviews', req.params.id);
     requireFields(req.body ?? {}, ['decision']);
     const { decision, note, proposedWording } = req.body;
     if (!['pending', 'accepted', 'denied'].includes(decision)) throw new HttpError(422, 'A finding is pending, accepted or denied');
@@ -167,6 +171,7 @@ export function labelsRouter(db) {
 
   /** Approve the review. Requires a second person and a decision on every finding. */
   router.post('/:id/approve', requirePermission('labels.approve'), route((req, res) => {
+    assertUnlocked(db, 'labelReviews', req.params.id);
     const review = db.getOrFail('labelReviews', req.params.id);
     const undecided = (review.findings ?? []).filter((f) => f.decision === 'pending');
     if (undecided.length) {
@@ -196,6 +201,7 @@ export function labelsRouter(db) {
 
   /** Release the approved label as the final component of record. */
   router.post('/:id/release', requirePermission('labels.approve'), route((req, res) => {
+    assertUnlocked(db, 'labelReviews', req.params.id);
     const review = db.getOrFail('labelReviews', req.params.id);
     if (review.status !== 'approved') throw new HttpError(409, 'Only an approved review can be released as the final label');
     res.json(db.update('labelReviews', review.id, { status: 'released' }, actorContext(req)));
@@ -239,6 +245,7 @@ export function labelsRouter(db) {
 
   /** Generate the compliant panel from the linked formula and attach it. */
   router.post('/:id/generate-panel', requirePermission('labels.write'), route((req, res) => {
+    assertUnlocked(db, 'labelReviews', req.params.id);
     const review = db.getOrFail('labelReviews', req.params.id);
     if (!review.formulaId) throw new HttpError(409, 'Link a master formula to this review before generating a Supplement Facts panel');
     const formula = db.getOrFail('formulas', review.formulaId);

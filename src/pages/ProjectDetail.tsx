@@ -5,16 +5,16 @@ import { useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '../components/Shell';
 import { Icon } from '../components/Icon';
 import {
-  Avatar, AvatarStack, Badge, Card, CardHead, Field, KeyValue, Loading, Meter,
-  Section, Select, StatusBadge, Tabs, TextArea, Toggle,
+  Avatar, AvatarStack, Badge, Card, CardHead, CopyButton, Field, Flag, KeyValue, Loading, Meter,
+  Modal, Section, Select, StatusBadge, Tabs, TextArea, TextInput, Toggle,
 } from '../components/ui';
 import { api, useList, useRecord } from '../lib/api';
 import { useUi } from '../lib/ui';
 import { useSession } from '../lib/session';
 import { useViewing } from '../lib/realtime';
 import { useCustomers, useUsers } from '../lib/lookups';
-import { date, relative, toDateInput } from '../lib/format';
-import { HEALTH, PRIORITIES, PROJECT_STAGES, PROJECT_TYPES, findOption } from '@shared/domain';
+import { date, dateTime, relative, toDateInput } from '../lib/format';
+import { HEALTH, PRIORITIES, PRODUCT_LOCK_STATES, PROJECT_STAGES, PROJECT_TYPES, findOption } from '@shared/domain';
 import type { Formula, LabelReview, Project, Quote, Task } from '../lib/types';
 
 export function ProjectDetail() {
@@ -34,7 +34,9 @@ export function ProjectDetail() {
   const { data: labels } = useList<LabelReview>('labelReviews', { where: { projectId: id ?? '' } }, { enabled: Boolean(id) });
   const { data: tasks } = useList<Task>('tasks', { where: { refId: id ?? '' }, sort: 'boardOrder' }, { enabled: Boolean(id) });
 
-  const writable = can('projects.write');
+  // A customer-approved product is frozen: the UI disables editing to match the
+  // server, which refuses the writes anyway.
+  let writable = can('projects.write');
 
   const patch = async (body: Partial<Project>) => {
     try {
@@ -45,6 +47,9 @@ export function ProjectDetail() {
   };
 
   if (isLoading || !project) return <div className="page"><Loading rows={8} /></div>;
+
+  const lockState = project.lockState ?? 'open';
+  if (lockState === 'locked') writable = false;
 
   const stage = findOption(PROJECT_STAGES, project.stage);
   const doneMilestones = project.milestones.filter((m) => m.done).length;
@@ -79,6 +84,8 @@ export function ProjectDetail() {
             <StatusBadge list={PROJECT_STAGES} value={project.stage} large />
             <StatusBadge list={HEALTH} value={project.health} />
             {project.priority !== 'normal' && <StatusBadge list={PRIORITIES} value={project.priority} dot={false} />}
+            <StatusBadge list={PRODUCT_LOCK_STATES} value={lockState} />
+            {(project.productRevision ?? 1) > 1 && <Badge tone="neutral">rev {project.productRevision}</Badge>}
           </>
         }
         subtitle={
@@ -105,6 +112,14 @@ export function ProjectDetail() {
             </>
           )
         }
+      />
+
+      <ProductLockPanel
+        project={project}
+        onChanged={() => {
+          queryClient.invalidateQueries({ queryKey: ['record', 'projects', id] });
+          queryClient.invalidateQueries({ queryKey: ['collection', 'projects'] });
+        }}
       />
 
       {openGates.length > 0 && (
@@ -344,5 +359,178 @@ function BriefEditor({ value, onSave }: { value: string; onSave: (value: string)
         </button>
       </div>
     </>
+  );
+}
+
+function ProductLockPanel({ project, onChanged }: { project: Project; onChanged: () => void }) {
+  const { can } = useSession();
+  const { success, error, confirm } = useUi();
+  const [recordOpen, setRecordOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const state = project.lockState ?? 'open';
+  const rev = project.productRevision ?? 1;
+  const canLock = can('product.lock');
+  const canRevise = can('product.revise');
+
+  const act = async (path: string, body?: unknown, done?: () => void) => {
+    setBusy(true);
+    try { await api.post(`/projects/${project.id}/${path}`, body); onChanged(); done?.(); }
+    catch (err) { error(err); } finally { setBusy(false); }
+  };
+
+  const requestApproval = () => act('request-approval', {}, () => success('Sent for customer approval', 'A signing link has been generated below.'));
+  const cancelRequest = () => act('cancel-approval', {}, () => success('Approval request withdrawn'));
+  const revise = async () => {
+    const ok = await confirm({
+      title: `Open revision ${rev + 1}?`,
+      body: 'This reopens the product for editing. The current customer-approved spec is frozen in the approval history and stays the production-of-record until a new approval is recorded.',
+      confirmLabel: 'Open a revision',
+      tone: 'warning',
+    });
+    if (ok) act('revise', { reason: typeof ok === 'string' ? ok : '' }, () => success(`Revision ${rev + 1} opened`, 'The product is editable again.'));
+  };
+
+  const link = project.approvalToken ? `${window.location.origin}/approve/${project.approvalToken}` : '';
+
+  return (
+    <>
+      {state === 'locked' ? (
+        <Card className="lock-banner" style={{ marginBottom: 'var(--s-4)' }}>
+          <div className="card-body row" style={{ alignItems: 'center', gap: 'var(--s-4)' }}>
+            <span className="tone-text" data-tone="success"><Icon name="lock" size={22} /></span>
+            <div className="grow">
+              <div className="cell-primary">Customer-approved — locked as the production-of-record (revision {rev})</div>
+              <div className="cell-sub">
+                Signed by <strong>{project.approval?.signedName}</strong>{project.approval?.signedTitle ? `, ${project.approval.signedTitle}` : ''}
+                {project.approval?.at ? ` · ${dateTime(project.approval.at)}` : ''}
+                {project.approval?.byName ? ` · recorded by ${project.approval.byName}` : ''}
+                {' '}· the formula, label, packaging and price are frozen.
+              </div>
+            </div>
+            {canRevise && (
+              <button type="button" className="btn" disabled={busy} onClick={revise}>
+                <Icon name="edit" size={14} /> Open a revision
+              </button>
+            )}
+          </div>
+        </Card>
+      ) : (
+        <Card style={{ marginBottom: 'var(--s-4)' }}>
+          <CardHead
+            title="Product approval"
+            subtitle={state === 'pending_approval'
+              ? 'Awaiting the customer’s sign-off — still editable until they approve'
+              : 'Fully editable. Lock it as the production-of-record when the customer approves.'}
+            icon={state === 'pending_approval' ? 'clock' : 'edit'}
+            actions={<StatusBadge list={PRODUCT_LOCK_STATES} value={state} />}
+          />
+          <div className="card-body col" style={{ gap: 'var(--s-3)' }}>
+            {state === 'pending_approval' && link && (
+              <Flag
+                tone="info"
+                title="Customer signing link"
+                detail={
+                  <span className="row" style={{ alignItems: 'center', gap: 'var(--s-2)' }}>
+                    <code className="mono truncate" style={{ maxWidth: 420 }}>{link}</code>
+                    <CopyButton text={link} />
+                  </span>
+                }
+              />
+            )}
+            {canLock && (
+              <div className="row-tight">
+                {state === 'open' && (
+                  <button type="button" className="btn btn-primary" disabled={busy} onClick={requestApproval}>
+                    <Icon name="send" size={14} /> Request customer approval
+                  </button>
+                )}
+                {state === 'pending_approval' && (
+                  <button type="button" className="btn" disabled={busy} onClick={cancelRequest}>
+                    Withdraw request
+                  </button>
+                )}
+                <button type="button" className="btn" disabled={busy} onClick={() => setRecordOpen(true)}>
+                  <Icon name="check" size={14} /> Record approval &amp; lock
+                </button>
+              </div>
+            )}
+            {!canLock && <div className="cell-sub">Only sales, quality, executive or admin can send a product for approval.</div>}
+          </div>
+        </Card>
+      )}
+
+      {(project.approvalHistory ?? []).length > 0 && (
+        <Card style={{ marginBottom: 'var(--s-4)' }}>
+          <CardHead title="Approval history" icon="history" />
+          <div className="card-body-flush">
+            {(project.approvalHistory ?? []).slice().reverse().map((a, i) => (
+              <div key={i} className="list-row">
+                <Badge tone="success">rev {a.revision}</Badge>
+                <span className="grow">
+                  <span className="cell-primary">{a.signedName}{a.signedTitle ? `, ${a.signedTitle}` : ''}</span>
+                  {a.note && <span className="cell-sub" style={{ display: 'block' }}>{a.note}</span>}
+                </span>
+                <span className="cell-sub nowrap">{a.method === 'customer-signature' ? 'signed in app' : 'recorded'}</span>
+                <span className="cell-sub nowrap" title={a.at}>{date(a.at)}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      <RecordApprovalModal
+        open={recordOpen}
+        project={project}
+        onClose={() => setRecordOpen(false)}
+        onDone={() => { setRecordOpen(false); onChanged(); }}
+      />
+    </>
+  );
+}
+
+function RecordApprovalModal({ open, project, onClose, onDone }: {
+  open: boolean; project: Project; onClose: () => void; onDone: () => void;
+}) {
+  const { error, success } = useUi();
+  const [signedName, setSignedName] = useState('');
+  const [signedTitle, setSignedTitle] = useState('');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    setBusy(true);
+    try {
+      await api.post(`/projects/${project.id}/record-approval`, { signedName, signedTitle, note });
+      success('Product locked', `${project.name} is now the customer-approved production-of-record.`);
+      setSignedName(''); setSignedTitle(''); setNote('');
+      onDone();
+    } catch (err) { error(err); } finally { setBusy(false); }
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Record customer approval"
+      footer={
+        <>
+          <button type="button" className="btn" onClick={onClose}>Cancel</button>
+          <button type="button" className="btn btn-primary" disabled={!signedName.trim() || busy} onClick={submit}>
+            {busy ? <span className="spinner" /> : <Icon name="lock" size={14} />} Approve &amp; lock
+          </button>
+        </>
+      }
+    >
+      <div className="col">
+        <Flag tone="warning" title="This locks the whole product package" detail="The formula, label, packaging and approved price freeze as the production-of-record. Changes afterward require a revision." />
+        <div className="field-row">
+          <Field label="Approved by (customer name)"><TextInput value={signedName} onChange={setSignedName} autoFocus placeholder="Name of the person who approved" /></Field>
+          <Field label="Title"><TextInput value={signedTitle} onChange={setSignedTitle} placeholder="e.g. VP Product" /></Field>
+        </div>
+        <Field label="Note / reference" hint="Optional — PO number, email date, or where the signed approval is filed.">
+          <TextArea value={note} onChange={setNote} rows={2} />
+        </Field>
+      </div>
+    </Modal>
   );
 }

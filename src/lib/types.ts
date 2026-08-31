@@ -136,6 +136,18 @@ export interface Project extends BaseRecord {
   brief: string; requirements: Requirement[]; milestones: Milestone[];
   gateChecks: GateCheck[]; risks: Risk[]; progress: number;
   boardOrder: number; stageEnteredAt: string | null; tags: string[]; notes: string;
+  lockState?: 'open' | 'pending_approval' | 'locked';
+  productRevision?: number;
+  approval?: ProductApproval;
+  approvalHistory?: ProductApproval[];
+  approvalToken?: string;
+  approvalRequestedAt?: string | null;
+}
+
+export interface ProductApproval {
+  decision: string; method: string; signedName: string; signedTitle?: string;
+  note?: string; evidenceDocId?: string; byUserId?: string; byName?: string;
+  at: string; revision: number;
 }
 
 export interface IngredientLine {

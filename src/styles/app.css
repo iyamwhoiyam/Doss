@@ -1008,3 +1008,6 @@ a.list-row:hover { text-decoration: none; }
 /* ── admin danger zone ──────────────────────────────────────────────────────── */
 .danger-zone { border-color: var(--tone-danger-line); }
 .danger-zone .card-head { border-bottom-color: var(--tone-danger-line); }
+
+/* ── product lock banner ────────────────────────────────────────────────────── */
+.lock-banner { border-color: var(--tone-success-line); background: var(--tone-success-bg); }

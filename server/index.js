@@ -32,6 +32,7 @@ import { documentsRouter } from './routes/documents.js';
 import { insightsRouter } from './routes/insights.js';
 import { adminRouter } from './routes/admin.js';
 import { importsRouter } from './routes/imports.js';
+import { projectsRouter } from './routes/projects.js';
 
 import * as domain from '../shared/domain.js';
 
@@ -137,6 +138,7 @@ export function createServer({ dataDir = DATA_DIR, autoSeed = true } = {}) {
   app.use('/api/documents', documentsRouter(db));
   app.use('/api/admin', adminRouter(db, hub));
   app.use('/api/import', importsRouter(db));
+  app.use('/api/projects', projectsRouter(db));
   app.use('/api', insightsRouter(db));
 
   // generic collection API

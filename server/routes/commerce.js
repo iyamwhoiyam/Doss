@@ -15,6 +15,7 @@ import { QUOTE_DEFAULTS, FORMULA_FORMATS, overheadRateForQty } from '../../share
 import { actorContext, requirePermission, HttpError } from '../lib/auth.js';
 import { route, num, requireFields } from '../lib/http.js';
 import { logActivity, notify } from '../lib/events.js';
+import { assertUnlocked } from '../lib/lock.js';
 
 /** Merge stored catalogue prices into a formula's ingredient lines. */
 function withLivePricing(db, formula) {
@@ -84,6 +85,7 @@ export function commerceRouter(db) {
 
   /** Cut a new revision instead of editing an approved formula in place. */
   router.post('/formulas/:id/revise', requirePermission('formulas.write'), route((req, res) => {
+    assertUnlocked(db, 'formulas', req.params.id);
     const ctx = actorContext(req);
     const created = db.transaction((tx) => {
       const source = tx.getOrFail('formulas', req.params.id);
@@ -105,6 +107,7 @@ export function commerceRouter(db) {
   }));
 
   router.post('/formulas/:id/approve', requirePermission('formulas.approve'), route((req, res) => {
+    assertUnlocked(db, 'formulas', req.params.id);
     const formula = withLivePricing(db, db.getOrFail('formulas', req.params.id));
     const built = buildFormula(formula);
     const compliance = runCompliance(formula, {
@@ -219,6 +222,7 @@ export function commerceRouter(db) {
 
   /** Re-price a saved quote — after a tier edit, a margin change or a price update. */
   router.post('/quotes/:id/recompute', requirePermission('quotes.write'), route((req, res) => {
+    assertUnlocked(db, 'quotes', req.params.id);
     const quote = db.getOrFail('quotes', req.params.id);
     const formula = withLivePricing(db, db.getOrFail('formulas', quote.formulaId));
     const tiers = req.body?.tiers ?? quote.tiers;

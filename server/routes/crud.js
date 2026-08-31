@@ -13,6 +13,7 @@ import { COLLECTION_PERMISSIONS, redact, searchableFields, schema } from '../db/
 import { can } from '../../shared/domain.js';
 import { actorContext, HttpError } from '../lib/auth.js';
 import { route, queryOptions, num } from '../lib/http.js';
+import { assertUnlocked } from '../lib/lock.js';
 
 /** Collections the generic API refuses to expose at all. */
 const PRIVATE = new Set(['sessions']);
@@ -74,6 +75,7 @@ export function crudRouter(db) {
   // -- patch --
   router.patch('/:collection/:id', route((req, res) => {
     guard(req, req.collection, 'write');
+    assertUnlocked(db, req.collection, req.params.id);
     const body = { ...req.body };
     for (const field of ['id', 'version', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']) delete body[field];
     if (req.collection === 'users') { delete body.passwordHash; delete body.passwordSalt; }
@@ -90,6 +92,7 @@ export function crudRouter(db) {
   // -- archive (soft delete) --
   router.delete('/:collection/:id', route((req, res) => {
     guard(req, req.collection, 'write');
+    assertUnlocked(db, req.collection, req.params.id);
     const row = db.remove(req.collection, req.params.id, actorContext(req));
     res.json({ id: row.id, archived: true, archivedAt: row.deletedAt });
   }));
@@ -106,7 +109,10 @@ export function crudRouter(db) {
     const ctx = actorContext(req);
     const result = db.transaction((tx) => ({
       created: create.map((data) => redact(req.collection, tx.insert(req.collection, data, ctx))),
-      updated: update.map(({ id, ...patch }) => redact(req.collection, tx.update(req.collection, id, patch, ctx))),
+      updated: update.map(({ id, ...patch }) => {
+        assertUnlocked(db, req.collection, id);
+        return redact(req.collection, tx.update(req.collection, id, patch, ctx));
+      }),
     }), ctx);
     res.json(result);
   }));
