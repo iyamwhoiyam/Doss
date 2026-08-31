@@ -77,6 +77,25 @@ export const SAMPLE_STATUS = [
   { value: 'rejected', label: 'Changes needed', tone: 'danger', blurb: 'Customer wants changes' },
 ];
 
+// Incoming requests for a quote, from first contact to won/lost.
+export const RFQ_STATUS = [
+  { value: 'new', label: 'New', tone: 'accent', blurb: 'Just came in — needs triage' },
+  { value: 'reviewing', label: 'Reviewing', tone: 'info', blurb: 'Being scoped and qualified' },
+  { value: 'quoting', label: 'Quoting', tone: 'progress', blurb: 'Formula and cost build underway' },
+  { value: 'quoted', label: 'Quoted', tone: 'warning', blurb: 'Quote sent, awaiting the customer' },
+  { value: 'won', label: 'Won', tone: 'success', blurb: 'Converted to a project' },
+  { value: 'lost', label: 'Lost', tone: 'danger', blurb: 'Did not proceed' },
+];
+
+export const RFQ_SOURCE = [
+  { value: 'website', label: 'Website' },
+  { value: 'email', label: 'Email' },
+  { value: 'referral', label: 'Referral' },
+  { value: 'trade_show', label: 'Trade show' },
+  { value: 'existing', label: 'Existing customer' },
+  { value: 'other', label: 'Other' },
+];
+
 // A product (a Project and its formula, label and price) is fully editable while
 // `open`, awaits the customer while `pending_approval`, and is frozen as the
 // production-of-record once `locked` — changes then require a new revision.
@@ -382,6 +401,7 @@ export const NAV = [
     { to: '/samples', label: 'Samples', icon: 'send' },
   ] },
   { group: 'Commercial', items: [
+    { to: '/rfqs', label: 'Quote requests', icon: 'clipboard' },
     { to: '/customers', label: 'Customers', icon: 'building' },
     { to: '/documents', label: 'Documents', icon: 'folder' },
     { to: '/orders', label: 'Orders', icon: 'cart' },

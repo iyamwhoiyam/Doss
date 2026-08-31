@@ -25,6 +25,7 @@ const QuoteBuilder = lazy(() => import('./pages/QuoteBuilder').then((m) => ({ de
 const Labels = lazy(() => import('./pages/Labels').then((m) => ({ default: m.Labels })));
 const Samples = lazy(() => import('./pages/Samples').then((m) => ({ default: m.Samples })));
 const LabelReviewPage = lazy(() => import('./pages/LabelReviewPage').then((m) => ({ default: m.LabelReviewPage })));
+const Rfqs = lazy(() => import('./pages/Rfqs').then((m) => ({ default: m.Rfqs })));
 const Customers = lazy(() => import('./pages/Customers').then((m) => ({ default: m.Customers })));
 const CustomerDetail = lazy(() => import('./pages/CustomerDetail').then((m) => ({ default: m.CustomerDetail })));
 const Documents = lazy(() => import('./pages/Documents').then((m) => ({ default: m.Documents })));
@@ -94,6 +95,8 @@ function AuthedApp() {
           <Route path="/labels/:id" element={<LabelReviewPage />} />
 
           <Route path="/samples" element={<Samples />} />
+
+          <Route path="/rfqs" element={<Rfqs />} />
 
           <Route path="/customers" element={<Customers />} />
           <Route path="/customers/:id" element={<CustomerDetail />} />

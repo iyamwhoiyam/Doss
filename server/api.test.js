@@ -689,6 +689,29 @@ test('samples mint a number, group on the board, and advance with date stamps', 
   assert.ok(fb.respondedAt);
 });
 
+test('a quote request converts into a linked project and draft formula', async () => {
+  await post('/api/auth/logout');
+  await post('/api/auth/login', { email: 'jbradfield@enovascience.com', password: 'enova2026' });
+
+  const rfq = await post('/api/rfqs', { productName: 'Zinc lozenge', format: 'tablet', targetQty: 50000, source: 'website' });
+  assert.match(rfq.rfqNumber, /^R-\d{4}-\d{4}$/);
+  assert.equal(rfq.status, 'new');
+
+  const converted = await post(`/api/rfqs/${rfq.id}/convert`);
+  assert.ok(converted.project.id && converted.formula.id);
+  assert.equal(converted.rfq.projectId, converted.project.id);
+  assert.equal(converted.rfq.status, 'quoting');
+  // the formula is linked back to the project and starts as a draft
+  const formula = db.get('formulas', converted.formula.id);
+  assert.equal(formula.projectId, converted.project.id);
+  assert.equal(formula.status, 'draft');
+  assert.equal(formula.format, 'tablet');
+
+  // converting again is refused
+  const again = await api('POST', `/api/rfqs/${rfq.id}/convert`, {}, { raw: true });
+  assert.equal(again.status, 409);
+});
+
 async function postCsv(url, csv, filename = 'data.csv') {
   const form = new FormData();
   form.append('file', new Blob([csv], { type: 'text/csv' }), filename);

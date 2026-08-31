@@ -1202,6 +1202,46 @@ Rev. 2 - 02/26`,
   });
   log(`${samples.length} samples`);
 
+  // -- quote requests (RFQ intake) --
+  const RFQ_MIX = ['new', 'new', 'reviewing', 'quoting', 'quoted', 'won', 'lost'];
+  const RFQ_IDEAS = [
+    ['Ashwagandha calm gummy', 'gummy', 60000, 0.42],
+    ['Magnesium glycinate capsule', 'capsule', 100000, 0.28],
+    ['Electrolyte stick pack', 'stick_pack', 250000, 0.19],
+    ['Kids multivitamin gummy', 'gummy', 80000, 0.38],
+    ['Creatine monohydrate powder', 'powder', 40000, 0.95],
+    ['Turmeric + black pepper softgel', 'softgel', 120000, 0.31],
+    ['Melatonin 3 mg tablet', 'tablet', 200000, 0.12],
+  ];
+  const rfqs = RFQ_MIX.map((status, i) => {
+    const [name, format, qty, price] = RFQ_IDEAS[i % RFQ_IDEAS.length];
+    const existing = chance(0.5) ? pick(customers) : null;
+    return db.insert('rfqs', {
+      rfqNumber: db.nextSequence('RFQ', 'R-{yyyy}-{n:4}'),
+      status,
+      productName: name,
+      customerId: existing?.id ?? '',
+      customerName: existing ? existing.name : pick(['Peak Labs', 'Verdant Wellness', 'NorthStar Nutrition', 'Bright Botanicals']),
+      contactName: pick(['Alex Kim', 'Jordan Patel', 'Sam Rivera', 'Casey Morgan']),
+      contactEmail: 'buyer@example.com',
+      source: pick(['website', 'email', 'referral', 'trade_show', 'existing']),
+      format,
+      desiredActives: '',
+      targetQty: qty,
+      targetPrice: price,
+      priority: pick(['normal', 'normal', 'high']),
+      dueDate: daysAhead(int(5, 30)),
+      ownerId: userFor('sales').id,
+      outcome: status === 'won' ? 'won' : status === 'lost' ? 'lost' : '',
+      lostReason: status === 'lost' ? 'Went with an incumbent manufacturer on price.' : '',
+      boardOrder: (i + 1) * 100,
+      stageEnteredAt: daysAgo(int(1, 20)),
+      notes: '',
+      tags: [],
+    }, sys);
+  });
+  log(`${rfqs.length} quote requests`);
+
   // -- cycle counts --
   for (let i = 0; i < 3; i++) {
     const location = pick([locations['RM-A'], locations['RM-B'], locations['PK-A']]);

@@ -13,7 +13,8 @@ import {
   PRIORITIES, HEALTH, PROJECT_STAGES, PROJECT_TERMINAL, PROJECT_TYPES,
   WORK_ORDER_STAGES, WORK_ORDER_TERMINAL, TASK_STATUS, FORMULA_FORMATS,
   FORMULA_STATUS, QUOTE_STATUS, DOCUMENT_CATEGORIES, DOCUMENT_STATUS,
-  DOCUMENT_OWNER_TYPES, LABEL_REVIEW_STATUS, SAMPLE_STATUS, SAMPLE_TYPES, enumValues,
+  DOCUMENT_OWNER_TYPES, LABEL_REVIEW_STATUS, SAMPLE_STATUS, SAMPLE_TYPES,
+  RFQ_STATUS, RFQ_SOURCE, enumValues,
 } from '../../shared/domain.js';
 
 const str = (label, extra = {}) => ({ type: 'string', label, ...extra });
@@ -557,6 +558,41 @@ export const schema = {
     search: ['sampleNumber', 'productName', 'recipientName', 'recipientCompany', 'trackingNumber', 'notes'],
   },
 
+  // ── quote requests (RFQ intake) ───────────────────────────────────────────
+  rfqs: {
+    label: 'Quote requests',
+    fields: {
+      rfqNumber: str('Request number', { required: true }),
+      status: oneOf('Status', RFQ_STATUS, 'new'),
+      productName: str('Product', { required: true }),
+      customerId: str('Customer'),
+      customerName: str('Company'),
+      contactName: str('Contact'),
+      contactEmail: str('Contact email'),
+      source: oneOf('Source', RFQ_SOURCE, 'email'),
+      format: str('Format'),
+      servingSize: str('Serving size'),
+      desiredActives: str('Desired ingredients'),
+      targetQty: num('Target quantity'),
+      targetPrice: num('Target price / unit'),
+      priority: oneOf('Priority', PRIORITIES, 'normal'),
+      dueDate: date('Quote needed by'),
+      ownerId: str('Owner'),
+      projectId: str('Project'),
+      formulaId: str('Formula'),
+      quoteId: str('Quote'),
+      outcome: { type: 'string', label: 'Outcome', enum: ['', 'won', 'lost'], default: '' },
+      lostReason: str('Reason lost'),
+      boardOrder: num('Board order', { default: 1000 }),
+      stageEnteredAt: date('Stage entered'),
+      notes: str('Notes'),
+      tags: arr('Tags'),
+    },
+    indexes: ['status', 'customerId', 'ownerId', 'priority'],
+    unique: ['rfqNumber'],
+    search: ['rfqNumber', 'productName', 'customerName', 'contactName', 'desiredActives', 'notes'],
+  },
+
   // ── coordination ─────────────────────────────────────────────────────────
   tasks: {
     label: 'Tasks',
@@ -675,6 +711,7 @@ export const COLLECTION_PERMISSIONS = {
   workOrders: { read: null, write: 'production.write' },
   labelReviews: { read: null, write: 'labels.write' },
   samples: { read: null, write: 'samples.write' },
+  rfqs: { read: null, write: 'quotes.write' },
   tasks: { read: null, write: 'tasks.write' },
   comments: { read: null, write: 'tasks.write' },
   activity: { read: null, write: null },

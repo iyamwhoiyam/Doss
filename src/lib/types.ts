@@ -144,6 +144,16 @@ export interface Project extends BaseRecord {
   approvalRequestedAt?: string | null;
 }
 
+export interface Rfq extends BaseRecord {
+  rfqNumber: string; status: string; productName: string;
+  customerId: string; customerName: string; contactName: string; contactEmail: string;
+  source: string; format: string; servingSize: string; desiredActives: string;
+  targetQty: number; targetPrice: number; priority: string; dueDate: string | null;
+  ownerId: string; projectId: string; formulaId: string; quoteId: string;
+  outcome: string; lostReason: string; boardOrder: number; stageEnteredAt: string | null;
+  notes: string; tags: string[];
+}
+
 export interface Sample extends BaseRecord {
   sampleNumber: string; type: string; status: string; productName: string;
   projectId: string; customerId: string; formulaId: string;
