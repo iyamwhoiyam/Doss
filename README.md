@@ -29,6 +29,11 @@ For production:
 npm run build && npm start   # one process on :4000, serving the built app
 ```
 
+To put it online for the team — one command on a fresh DigitalOcean Droplet (or
+any Ubuntu server), Docker-packaged with automatic HTTPS the moment you add a
+domain — see **[DEPLOY.md](DEPLOY.md)**. The whole platform runs from
+`docker compose up`, with the database on a persistent volume.
+
 ---
 
 ## What it does

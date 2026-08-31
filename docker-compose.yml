@@ -1,0 +1,49 @@
+# Enova Ops — the whole platform in two containers.
+#
+#   app    the Node server (API + built React app + the file-system database)
+#   caddy  a reverse proxy that gives you one clean address and, the moment you
+#          point a domain at the server, automatic HTTPS
+#
+# The database lives on the named volume `enova-data`, so `docker compose down`
+# and `up`, a rebuild, or a server reboot never lose data. Back it up by copying
+# that volume (see DEPLOY.md).
+
+services:
+  app:
+    build: .
+    image: enova-ops
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATA_DIR: /data
+      # Let the session cookie work over plain HTTP while you are on a bare IP.
+      # docker-compose reads this from your .env; it flips to 0 once you add a
+      # domain with HTTPS.
+      ALLOW_INSECURE_COOKIE: ${ALLOW_INSECURE_COOKIE:-1}
+    volumes:
+      - enova-data:/data
+    expose:
+      - "4000"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # ":80"  -> plain HTTP on the server's IP (default, works on first boot)
+      # a host -> automatic HTTPS, e.g. SITE_ADDRESS=ops.enovascience.com
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  enova-data:
+  caddy-data:
+  caddy-config:

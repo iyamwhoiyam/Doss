@@ -1,0 +1,19 @@
+# Keep the build context small and the image clean.
+node_modules
+dist
+.git
+.gitignore
+
+# The runtime file-system database — must never be baked into the image.
+/data
+
+# Local env, editor and OS cruft
+.env
+*.local
+.DS_Store
+npm-debug.log*
+
+# Docs and scripts the running app does not need
+*.md
+!server/**
+scripts
