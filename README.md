@@ -49,6 +49,10 @@ domain — see **[DEPLOY.md](DEPLOY.md)**. The whole platform runs from
 | **Formulations** | The master formula: drag-to-reorder ingredients, live cost roll-up, compliance gates, revisions, generated Supplement Facts |
 | **Quotes & costing** | Tiered cost generator — COGS, labour, overhead, COA amortisation, per-tier margin — plus the client-facing bid sheet |
 | **Label review** | The 41-row Enova checklist, a 21 CFR rules engine over panel copy, a findings register with accept/deny, two-person sign-off, corrected proof |
+| **Samples** | Drag-to-advance sample tracking — request → shipped → with customer → approved, with tracking numbers, feedback and due dates |
+| **Quote requests** | An RFQ intake pipeline (new → quoting → won/lost) that converts a request into a project and draft formula in one click |
+| **Reports** | Live rollups — production throughput, inventory valuation, quote win rate, on-time delivery — each exportable to CSV |
+| **Activity** | A company-wide timeline of everything happening across the platform, filterable by type |
 | **Customers** | Accounts, contacts, the commercial history, and the customer document vault |
 | **Documents** | Versioned document management with expiry tracking and a compliance watchlist |
 | **Orders** | Sales orders through to shipment, tied to the batches that made them |

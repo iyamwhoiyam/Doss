@@ -192,6 +192,8 @@ export function insightsRouter(db) {
     { collection: 'lots', label: 'Lot', fields: ['lotNumber', 'vendorLot'], title: (r) => `Lot ${r.lotNumber}`, link: (r) => `/inventory/${r.itemId}?lot=${r.id}` },
     { collection: 'documents', label: 'Document', fields: ['name', 'description'], title: (r) => r.name, link: (r) => `/documents?doc=${r.id}` },
     { collection: 'labelReviews', label: 'Label review', fields: ['reviewNumber', 'productName', 'brand'], title: (r) => `${r.reviewNumber} · ${r.productName}`, link: (r) => `/labels/${r.id}` },
+    { collection: 'samples', label: 'Sample', fields: ['sampleNumber', 'productName', 'recipientName', 'recipientCompany', 'trackingNumber'], title: (r) => `${r.sampleNumber} · ${r.productName}`, link: () => '/samples' },
+    { collection: 'rfqs', label: 'Quote request', fields: ['rfqNumber', 'productName', 'customerName', 'contactName'], title: (r) => `${r.rfqNumber} · ${r.productName}`, link: () => '/rfqs' },
     { collection: 'salesOrders', label: 'Order', fields: ['orderNumber', 'customerPo'], title: (r) => r.orderNumber, link: (r) => `/orders/${r.id}` },
     { collection: 'purchaseOrders', label: 'Purchase order', fields: ['poNumber'], title: (r) => r.poNumber, link: (r) => `/purchasing/${r.id}` },
     { collection: 'users', label: 'Person', fields: ['name', 'email', 'title'], title: (r) => `${r.name} · ${r.title}`, link: () => '/admin' },

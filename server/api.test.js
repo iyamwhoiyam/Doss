@@ -712,6 +712,17 @@ test('a quote request converts into a linked project and draft formula', async (
   assert.equal(again.status, 409);
 });
 
+test('global search reaches the new modules and reports read', async () => {
+  await post('/api/auth/logout');
+  await post('/api/auth/login', { email: 'jbradfield@enovascience.com', password: 'enova2026' });
+  const found = await get('/api/search?q=Ashwagandha');
+  assert.ok(found.groups.some((g) => g.collection === 'rfqs' && g.results.length), 'a seeded quote request is findable in global search');
+
+  const overview = await get('/api/reports/overview');
+  assert.ok(Array.isArray(overview.throughput) && overview.throughput.length === 12);
+  assert.ok(overview.inventory.total > 0);
+});
+
 async function postCsv(url, csv, filename = 'data.csv') {
   const form = new FormData();
   form.append('file', new Blob([csv], { type: 'text/csv' }), filename);
