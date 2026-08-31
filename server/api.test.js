@@ -608,6 +608,65 @@ test('opening a revision is limited to the product.revise roles', async () => {
   assert.equal(denied.status, 403, 'production cannot open a product revision');
 });
 
+test('the customer approval page works by token, hides cost, and locks on signature', async () => {
+  await post('/api/auth/logout');
+  await post('/api/auth/login', { email: 'jbradfield@enovascience.com', password: 'enova2026' });
+
+  const project = db.find('projects', {}).find((p) => p.formulaId && (p.lockState ?? 'open') === 'open')
+    ?? db.find('projects', {}).find((p) => (p.lockState ?? 'open') === 'open');
+  assert.ok(project);
+  const requested = await post(`/api/projects/${project.id}/request-approval`, {});
+  const token = requested.approvalToken;
+  assert.ok(token);
+
+  // the page reads without any session — the token is the only credential
+  const pkgRes = await fetch(`${base}/api/public/approval/${token}`);
+  assert.equal(pkgRes.status, 200);
+  const pkg = await pkgRes.json();
+  assert.equal(pkg.project.id, project.id);
+  // no internal economics ever cross to the customer
+  assert.ok(!/cogs|margin|overhead|labor|costperunit|saleprice/i.test(JSON.stringify(pkg)), 'cost fields are not exposed');
+
+  // approval requires the confirmation flag
+  const noAgree = await fetch(`${base}/api/public/approval/${token}/approve`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ signedName: 'Pat Buyer' }),
+  });
+  assert.equal(noAgree.status, 422);
+
+  const signed = await fetch(`${base}/api/public/approval/${token}/approve`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ signedName: 'Pat Buyer', signedTitle: 'Owner', agree: true }),
+  });
+  assert.equal(signed.status, 200);
+
+  const locked = db.get('projects', project.id);
+  assert.equal(locked.lockState, 'locked');
+  assert.equal(locked.approval.method, 'customer-signature');
+  assert.equal(locked.approval.signedName, 'Pat Buyer');
+
+  // the token is spent
+  const dead = await fetch(`${base}/api/public/approval/${token}`);
+  assert.equal(dead.status, 410);
+});
+
+test('a customer can request changes, which reopens the product and notifies the team', async () => {
+  const project = db.find('projects', {}).find((p) => (p.lockState ?? 'open') === 'open');
+  assert.ok(project);
+  const requested = await post(`/api/projects/${project.id}/request-approval`, {});
+  const token = requested.approvalToken;
+
+  const res = await fetch(`${base}/api/public/approval/${token}/request-changes`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ signedName: 'Pat Buyer', comment: 'Please raise the vitamin D to 2000 IU.' }),
+  });
+  assert.equal(res.status, 200);
+
+  const reopened = db.get('projects', project.id);
+  assert.equal(reopened.lockState, 'open');
+  assert.equal(reopened.approvalToken, '');
+  assert.ok(reopened.approvalHistory.some((a) => a.decision === 'changes_requested'));
+});
+
 async function postCsv(url, csv, filename = 'data.csv') {
   const form = new FormData();
   form.append('file', new Blob([csv], { type: 'text/csv' }), filename);

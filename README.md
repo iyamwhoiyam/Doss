@@ -45,7 +45,7 @@ domain — see **[DEPLOY.md](DEPLOY.md)**. The whole platform runs from
 | **Schedule** | Line-by-line planning timeline — drag a batch onto a line and a day to reschedule it, with daily capacity load and a tray of batches awaiting a slot |
 | **Inventory** | On-hand by item and lot, receiving, QA disposition, adjustments, transfers, cycle counts, reorder and expiry alerts, full lot genealogy |
 | **Vendors & POs** | Vendor qualification and scorecards, purchase order lifecycle, receiving against a PO, reorder suggestions that draft POs per vendor |
-| **Development** | Stage-gated project pipeline with milestones, gate checks, requirements and risks |
+| **Development** | Stage-gated project pipeline with milestones, gate checks, requirements and risks — plus product change control: fully editable until the customer e-signs approval on a private link, which locks the formula, label, packaging and price as the production-of-record; changes then require a revision |
 | **Formulations** | The master formula: drag-to-reorder ingredients, live cost roll-up, compliance gates, revisions, generated Supplement Facts |
 | **Quotes & costing** | Tiered cost generator — COGS, labour, overhead, COA amortisation, per-tier margin — plus the client-facing bid sheet |
 | **Label review** | The 41-row Enova checklist, a 21 CFR rules engine over panel copy, a findings register with accept/deny, two-person sign-off, corrected proof |

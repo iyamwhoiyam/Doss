@@ -33,6 +33,7 @@ import { insightsRouter } from './routes/insights.js';
 import { adminRouter } from './routes/admin.js';
 import { importsRouter } from './routes/imports.js';
 import { projectsRouter } from './routes/projects.js';
+import { publicRouter } from './routes/public.js';
 
 import * as domain from '../shared/domain.js';
 
@@ -107,9 +108,13 @@ export function createServer({ dataDir = DATA_DIR, autoSeed = true } = {}) {
     });
   });
 
+  // The customer approval page answers without a login — its single-use token is
+  // the credential — so it is mounted before the auth gate.
+  app.use('/api/public', publicRouter(db));
+
   // ── everything below needs a signed-in user ──────────────────────────────
   app.use('/api', (req, res, next) => {
-    if (req.path.startsWith('/auth') || req.path === '/health' || req.path === '/meta') return next();
+    if (req.path.startsWith('/auth') || req.path.startsWith('/public') || req.path === '/health' || req.path === '/meta') return next();
     return requireUser(req, res, next);
   });
 

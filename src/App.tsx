@@ -30,6 +30,7 @@ const Documents = lazy(() => import('./pages/Documents').then((m) => ({ default:
 const Orders = lazy(() => import('./pages/Orders').then((m) => ({ default: m.Orders })));
 const OrderDetail = lazy(() => import('./pages/OrderDetail').then((m) => ({ default: m.OrderDetail })));
 const Admin = lazy(() => import('./pages/Admin').then((m) => ({ default: m.Admin })));
+const ApprovalPage = lazy(() => import('./pages/ApprovalPage').then((m) => ({ default: m.ApprovalPage })));
 
 function Booting() {
   return (
@@ -43,6 +44,18 @@ function Booting() {
 }
 
 export function App() {
+  return (
+    <Suspense fallback={<Booting />}>
+      <Routes>
+        {/* The customer approval page is public — no login, no app shell. */}
+        <Route path="/approve/:token" element={<ApprovalPage />} />
+        <Route path="/*" element={<AuthedApp />} />
+      </Routes>
+    </Suspense>
+  );
+}
+
+function AuthedApp() {
   const { user, loading } = useSession();
 
   if (loading) return <Booting />;

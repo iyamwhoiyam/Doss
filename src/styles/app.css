@@ -1011,3 +1011,45 @@ a.list-row:hover { text-decoration: none; }
 
 /* ── product lock banner ────────────────────────────────────────────────────── */
 .lock-banner { border-color: var(--tone-success-line); background: var(--tone-success-bg); }
+
+/* ── customer approval page (public, standalone) ────────────────────────────── */
+.approve-shell { min-height: 100vh; display: flex; flex-direction: column; background: var(--surface-0); color: var(--text); }
+.approve-top { display: flex; align-items: baseline; gap: var(--s-3); padding: var(--s-4) var(--s-5); border-bottom: 1px solid var(--line); }
+.approve-brand { font-weight: 700; font-size: var(--t-lg); letter-spacing: -0.01em; color: var(--accent); }
+.approve-top-sub { color: var(--text-muted); font-size: var(--t-sm); }
+.approve-main { flex: 1; width: 100%; max-width: 720px; margin: 0 auto; padding: var(--s-6) var(--s-4); display: flex; flex-direction: column; gap: var(--s-4); }
+.approve-intro h1 { font-size: var(--t-2xl, 1.6rem); margin: 0 0 var(--s-2); letter-spacing: -0.02em; }
+.approve-muted { color: var(--text-muted); }
+.approve-small { font-size: var(--t-sm); }
+.approve-card { background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; }
+.approve-card-head { padding: var(--s-3) var(--s-4); border-bottom: 1px solid var(--line); font-weight: 600; font-size: var(--t-sm); text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+.approve-pad { padding: var(--s-4); }
+.approve-center { text-align: center; display: flex; flex-direction: column; align-items: center; gap: var(--s-2); padding: var(--s-7) var(--s-4); }
+.approve-emoji { font-size: 40px; }
+.approve-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--s-3); margin-bottom: var(--s-3); }
+.approve-facts dt { font-size: var(--t-xs); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
+.approve-facts dd { margin: 2px 0 0; font-weight: 500; }
+.approve-table { width: 100%; border-collapse: collapse; margin-top: var(--s-2); }
+.approve-table th { text-align: left; font-size: var(--t-xs); text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); padding: var(--s-2) 0; border-bottom: 1px solid var(--line); }
+.approve-table td { padding: var(--s-2) 0; border-bottom: 1px solid var(--line-soft); }
+.approve-table .right, .approve-table th.right { text-align: right; }
+.approve-price { font-weight: 600; color: var(--accent); }
+.approve-note { margin: var(--s-3) 0 0; font-size: var(--t-sm); }
+.approve-actions { display: flex; gap: var(--s-3); flex-wrap: wrap; }
+.approve-btn { appearance: none; border: 1px solid var(--line-strong); background: var(--surface-2); color: var(--text); font: inherit; font-weight: 600; padding: 12px 20px; border-radius: var(--r-md); cursor: pointer; }
+.approve-btn:hover { border-color: var(--accent); }
+.approve-btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text, #fff); }
+.approve-btn-primary:hover { filter: brightness(1.05); }
+.approve-btn-ghost { background: transparent; border-color: transparent; }
+.approve-btn:disabled { opacity: 0.6; cursor: default; }
+.approve-form h3 { margin: 0 0 var(--s-2); }
+.approve-fields { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-3); margin: var(--s-3) 0; }
+.approve-form label { display: flex; flex-direction: column; gap: 4px; font-size: var(--t-sm); font-weight: 500; }
+.approve-block { display: flex; flex-direction: column; gap: 4px; font-size: var(--t-sm); font-weight: 500; margin: var(--s-3) 0; }
+.approve-form input, .approve-form textarea { font: inherit; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: var(--r-sm); background: var(--surface-0); color: var(--text); }
+.approve-form input:focus, .approve-form textarea:focus { outline: none; border-color: var(--accent); }
+.approve-check { flex-direction: row !important; align-items: flex-start; gap: var(--s-2); font-weight: 400; margin-top: var(--s-2); }
+.approve-check input { margin-top: 3px; }
+.approve-error { color: var(--tone-danger-fg); font-size: var(--t-sm); margin-top: var(--s-2); }
+.approve-foot { text-align: center; padding: var(--s-5); color: var(--text-faint); font-size: var(--t-xs); border-top: 1px solid var(--line); }
+@media (max-width: 560px) { .approve-fields { grid-template-columns: 1fr; } }
