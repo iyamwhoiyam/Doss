@@ -178,7 +178,7 @@ export function adminRouter(db, hub) {
     }
     const WIPE = [
       'customers', 'vendors', 'items', 'locations', 'lots', 'inventoryTxns', 'cycleCounts',
-      'projects', 'formulas', 'quotes', 'workOrders', 'labelReviews', 'purchaseOrders',
+      'projects', 'formulas', 'quotes', 'workOrders', 'labelReviews', 'samples', 'purchaseOrders',
       'salesOrders', 'shipments', 'documents', 'tasks', 'comments', 'activity',
       'notifications', 'savedViews',
     ];

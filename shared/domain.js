@@ -45,6 +45,7 @@ export const PERMISSIONS = {
   'production.release': ['admin', 'operations', 'quality'],
   'labels.write': ['admin', 'quality', 'rd', 'sales'],
   'labels.approve': ['admin', 'quality', 'executive'],
+  'samples.write': ['admin', 'sales', 'rd', 'quality', 'operations'],
   // Product change control: who can send a product for customer approval / lock
   // it, and who can open a revision once it is customer-approved.
   'product.lock': ['admin', 'executive', 'sales', 'quality'],
@@ -57,6 +58,24 @@ export function can(role, permission) {
   if (role === 'admin') return true;
   return (PERMISSIONS[permission] ?? []).includes(role);
 }
+
+// Samples sent to customers, labs or held as retention.
+export const SAMPLE_TYPES = [
+  { value: 'customer', label: 'Customer sample', tone: 'accent' },
+  { value: 'lab', label: 'Lab submission', tone: 'info' },
+  { value: 'retention', label: 'Retention', tone: 'neutral' },
+  { value: 'internal', label: 'Internal / R&D', tone: 'progress' },
+];
+
+export const SAMPLE_STATUS = [
+  { value: 'requested', label: 'Requested', tone: 'neutral', blurb: 'Sample asked for, not yet made' },
+  { value: 'prepared', label: 'Prepared', tone: 'info', blurb: 'Pulled and packed, ready to ship' },
+  { value: 'shipped', label: 'Shipped', tone: 'progress', blurb: 'On its way to the recipient' },
+  { value: 'delivered', label: 'Delivered', tone: 'progress', blurb: 'Received by the recipient' },
+  { value: 'reviewing', label: 'With customer', tone: 'warning', blurb: 'Awaiting feedback' },
+  { value: 'approved', label: 'Approved', tone: 'success', blurb: 'Customer approved the sample' },
+  { value: 'rejected', label: 'Changes needed', tone: 'danger', blurb: 'Customer wants changes' },
+];
 
 // A product (a Project and its formula, label and price) is fully editable while
 // `open`, awaits the customer while `pending_approval`, and is frozen as the
@@ -360,6 +379,7 @@ export const NAV = [
     { to: '/formulations', label: 'Formulations', icon: 'beaker' },
     { to: '/quotes', label: 'Quotes & costing', icon: 'calculator' },
     { to: '/labels', label: 'Label review', icon: 'label' },
+    { to: '/samples', label: 'Samples', icon: 'send' },
   ] },
   { group: 'Commercial', items: [
     { to: '/customers', label: 'Customers', icon: 'building' },

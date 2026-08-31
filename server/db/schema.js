@@ -13,7 +13,7 @@ import {
   PRIORITIES, HEALTH, PROJECT_STAGES, PROJECT_TERMINAL, PROJECT_TYPES,
   WORK_ORDER_STAGES, WORK_ORDER_TERMINAL, TASK_STATUS, FORMULA_FORMATS,
   FORMULA_STATUS, QUOTE_STATUS, DOCUMENT_CATEGORIES, DOCUMENT_STATUS,
-  DOCUMENT_OWNER_TYPES, LABEL_REVIEW_STATUS, enumValues,
+  DOCUMENT_OWNER_TYPES, LABEL_REVIEW_STATUS, SAMPLE_STATUS, SAMPLE_TYPES, enumValues,
 } from '../../shared/domain.js';
 
 const str = (label, extra = {}) => ({ type: 'string', label, ...extra });
@@ -518,6 +518,45 @@ export const schema = {
     search: ['reviewNumber', 'productName', 'brand', 'notes'],
   },
 
+  // ── samples ──────────────────────────────────────────────────────────────
+  samples: {
+    label: 'Samples',
+    fields: {
+      sampleNumber: str('Sample number', { required: true }),
+      type: oneOf('Type', SAMPLE_TYPES, 'customer'),
+      status: oneOf('Status', SAMPLE_STATUS, 'requested'),
+      productName: str('Product', { required: true }),
+      projectId: str('Project'),
+      customerId: str('Customer'),
+      formulaId: str('Formula'),
+      lotId: str('Lot'),
+      lotNumber: str('Lot number'),
+      quantity: num('Quantity'),
+      uom: { type: 'string', label: 'UOM', enum: UOMS, default: 'ea' },
+      recipientName: str('Recipient'),
+      recipientCompany: str('Recipient company'),
+      shipTo: str('Ship to'),
+      carrier: str('Carrier'),
+      trackingNumber: str('Tracking number'),
+      requestedById: str('Requested by'),
+      ownerId: str('Owner'),
+      requestedAt: date('Requested'),
+      shippedAt: date('Shipped'),
+      deliveredAt: date('Delivered'),
+      dueBy: date('Feedback due'),
+      respondedAt: date('Responded'),
+      outcome: { type: 'string', label: 'Outcome', enum: ['', 'approved', 'changes', 'rejected'], default: '' },
+      feedback: str('Feedback'),
+      boardOrder: num('Board order', { default: 1000 }),
+      stageEnteredAt: date('Stage entered'),
+      notes: str('Notes'),
+      tags: arr('Tags'),
+    },
+    indexes: ['status', 'type', 'customerId', 'projectId', 'formulaId', 'ownerId'],
+    unique: ['sampleNumber'],
+    search: ['sampleNumber', 'productName', 'recipientName', 'recipientCompany', 'trackingNumber', 'notes'],
+  },
+
   // ── coordination ─────────────────────────────────────────────────────────
   tasks: {
     label: 'Tasks',
@@ -635,6 +674,7 @@ export const COLLECTION_PERMISSIONS = {
   quotes: { read: 'cost.view', write: 'quotes.write' },
   workOrders: { read: null, write: 'production.write' },
   labelReviews: { read: null, write: 'labels.write' },
+  samples: { read: null, write: 'samples.write' },
   tasks: { read: null, write: 'tasks.write' },
   comments: { read: null, write: 'tasks.write' },
   activity: { read: null, write: null },

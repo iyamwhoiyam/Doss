@@ -30,6 +30,8 @@ export const SO_STATUS: Option[];
 export const PRIORITIES: Option[];
 export const HEALTH: Option[];
 export const PRODUCT_LOCK_STATES: Option[];
+export const SAMPLE_TYPES: Option[];
+export const SAMPLE_STATUS: Option[];
 export const PROJECT_STAGES: Option[];
 export const PROJECT_TERMINAL: Option[];
 export const PROJECT_TYPES: Option[];

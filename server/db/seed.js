@@ -1161,6 +1161,47 @@ Rev. 2 - 02/26`,
   });
   log(`${labelReviews.length} label reviews`);
 
+  // -- samples --
+  const SAMPLE_MIX = ['requested', 'prepared', 'shipped', 'delivered', 'reviewing', 'reviewing', 'approved', 'rejected'];
+  const samples = SAMPLE_MIX.map((status, i) => {
+    const project = pick(projects);
+    const formula = formulas.find((f) => f.id === project.formulaId) ?? pick(formulas);
+    const customer = customers.find((c) => c.id === project.customerId) ?? pick(customers);
+    const owner = userFor('sales');
+    const shipped = ['shipped', 'delivered', 'reviewing', 'approved', 'rejected'].includes(status);
+    const responded = ['approved', 'rejected'].includes(status);
+    return db.insert('samples', {
+      sampleNumber: db.nextSequence('SAMPLE', 'S-{yyyy}-{n:4}'),
+      type: pick(['customer', 'customer', 'lab', 'internal']),
+      status,
+      productName: formula.name,
+      projectId: project.id,
+      customerId: customer.id,
+      formulaId: formula.id,
+      quantity: pick([2, 3, 6, 12]),
+      uom: 'ea',
+      recipientName: (customer.contacts?.[0]?.name) ?? '',
+      recipientCompany: customer.name,
+      shipTo: '',
+      carrier: shipped ? pick(['FedEx', 'UPS']) : '',
+      trackingNumber: shipped ? `1Z${int(1000, 9999)}${int(1000, 9999)}` : '',
+      requestedById: owner.id,
+      ownerId: owner.id,
+      requestedAt: daysAgo(int(4, 30)),
+      shippedAt: shipped ? daysAgo(int(2, 20)) : null,
+      deliveredAt: ['delivered', 'reviewing', 'approved', 'rejected'].includes(status) ? daysAgo(int(1, 15)) : null,
+      dueBy: status === 'reviewing' ? daysAhead(int(2, 12)) : null,
+      respondedAt: responded ? daysAgo(int(1, 6)) : null,
+      outcome: status === 'approved' ? 'approved' : status === 'rejected' ? 'changes' : '',
+      feedback: status === 'approved' ? 'Loved the texture and flavour — approved to proceed.' : status === 'rejected' ? 'Please reduce sweetness and firm up the gummy.' : '',
+      boardOrder: (i + 1) * 100,
+      stageEnteredAt: daysAgo(int(1, 8)),
+      notes: '',
+      tags: [],
+    }, sys);
+  });
+  log(`${samples.length} samples`);
+
   // -- cycle counts --
   for (let i = 0; i < 3; i++) {
     const location = pick([locations['RM-A'], locations['RM-B'], locations['PK-A']]);

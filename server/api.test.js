@@ -667,6 +667,28 @@ test('a customer can request changes, which reopens the product and notifies the
   assert.ok(reopened.approvalHistory.some((a) => a.decision === 'changes_requested'));
 });
 
+test('samples mint a number, group on the board, and advance with date stamps', async () => {
+  await post('/api/auth/logout');
+  await post('/api/auth/login', { email: 'jbradfield@enovascience.com', password: 'enova2026' });
+
+  const created = await post('/api/samples', { productName: 'Test D3 gummy', type: 'customer', quantity: 6 });
+  assert.match(created.sampleNumber, /^S-\d{4}-\d{4}$/);
+  assert.equal(created.status, 'requested');
+
+  const board = await get('/api/samples/board');
+  const requested = board.columns.find((c) => c.value === 'requested');
+  assert.ok(requested.cards.some((s) => s.id === created.id));
+
+  const shipped = await post(`/api/samples/${created.id}/move`, { status: 'shipped' });
+  assert.equal(shipped.status, 'shipped');
+  assert.ok(shipped.shippedAt, 'shipping stamps the date');
+
+  const fb = await post(`/api/samples/${created.id}/feedback`, { outcome: 'approved', feedback: 'Loved it' });
+  assert.equal(fb.status, 'approved');
+  assert.equal(fb.outcome, 'approved');
+  assert.ok(fb.respondedAt);
+});
+
 async function postCsv(url, csv, filename = 'data.csv') {
   const form = new FormData();
   form.append('file', new Blob([csv], { type: 'text/csv' }), filename);
