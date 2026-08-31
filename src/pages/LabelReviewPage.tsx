@@ -156,6 +156,7 @@ export function LabelReviewPage() {
         actions={
           writable && (
             <>
+              <button type="button" className="btn" onClick={() => window.open(`/print/label/${id}`, '_blank')}><Icon name="printer" size={13} /> Proof PDF</button>
               <button type="button" className="btn" onClick={() => setEditOpen(true)}><Icon name="edit" size={13} /> Update copy</button>
               <button type="button" className="btn" onClick={() => setProofOpen(true)}><Icon name="wand" size={13} /> Corrected proof</button>
               {can('labels.approve') && review.status !== 'approved' && (

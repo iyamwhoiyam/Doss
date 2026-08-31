@@ -249,6 +249,7 @@ export function FormulaBuilder() {
         actions={
           writable && (
             <>
+              {!isNew && <button type="button" className="btn" onClick={() => window.open(`/print/spec/${id}`, '_blank')}><Icon name="printer" size={13} /> Spec PDF</button>}
               {!isNew && draft.status === 'approved' && (
                 <button type="button" className="btn" onClick={revise}><Icon name="git" size={13} /> New revision</button>
               )}

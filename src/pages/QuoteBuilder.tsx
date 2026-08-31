@@ -235,6 +235,7 @@ export function QuoteBuilder() {
         actions={
           writable && (
             <>
+              {!isNew && <button type="button" className="btn" onClick={() => window.open(`/print/quote/${id}`, '_blank')}><Icon name="printer" size={13} /> PDF</button>}
               {quote?.status === 'sent' && (
                 <>
                   <button type="button" className="btn" onClick={() => decide('declined')}>Declined</button>

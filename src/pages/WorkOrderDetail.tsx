@@ -148,6 +148,7 @@ export function WorkOrderDetail() {
         actions={
           writable && (
             <>
+              <button type="button" className="btn" onClick={() => window.open(`/print/batch/${id}`, '_blank')}><Icon name="printer" size={13} /> Batch record</button>
               {wo.stage !== 'qc_hold' && wo.stage !== 'complete' && (
                 <button type="button" className="btn" onClick={() => advance('qc_hold')}>
                   <Icon name="pause" size={13} /> QC hold

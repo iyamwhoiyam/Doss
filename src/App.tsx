@@ -33,6 +33,7 @@ const Orders = lazy(() => import('./pages/Orders').then((m) => ({ default: m.Ord
 const OrderDetail = lazy(() => import('./pages/OrderDetail').then((m) => ({ default: m.OrderDetail })));
 const Admin = lazy(() => import('./pages/Admin').then((m) => ({ default: m.Admin })));
 const ApprovalPage = lazy(() => import('./pages/ApprovalPage').then((m) => ({ default: m.ApprovalPage })));
+const PrintDoc = lazy(() => import('./pages/PrintDoc').then((m) => ({ default: m.PrintDoc })));
 
 function Booting() {
   return (
@@ -51,10 +52,19 @@ export function App() {
       <Routes>
         {/* The customer approval page is public — no login, no app shell. */}
         <Route path="/approve/:token" element={<ApprovalPage />} />
+        {/* Printable documents: signed-in, but no app shell so they print clean. */}
+        <Route path="/print/:kind/:id" element={<PrintRoute />} />
         <Route path="/*" element={<AuthedApp />} />
       </Routes>
     </Suspense>
   );
+}
+
+function PrintRoute() {
+  const { user, loading } = useSession();
+  if (loading) return <Booting />;
+  if (!user) return <Login />;
+  return <PrintDoc />;
 }
 
 function AuthedApp() {
