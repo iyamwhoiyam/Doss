@@ -249,6 +249,9 @@ export function FormulaBuilder() {
         actions={
           writable && (
             <>
+              {!isNew && (draft.projectId || projects.rows.find((p) => p.formulaId === id)?.id) && (
+                <button type="button" className="btn" onClick={() => navigate(`/development/${draft.projectId || projects.rows.find((p) => p.formulaId === id)?.id}`)}><Icon name="flask" size={13} /> Open project</button>
+              )}
               {!isNew && <button type="button" className="btn" onClick={() => window.open(`/print/spec/${id}`, '_blank')}><Icon name="printer" size={13} /> Spec PDF</button>}
               {!isNew && draft.status === 'approved' && (
                 <button type="button" className="btn" onClick={revise}><Icon name="git" size={13} /> New revision</button>

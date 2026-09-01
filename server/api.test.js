@@ -723,6 +723,26 @@ test('global search reaches the new modules and reports read', async () => {
   assert.ok(overview.inventory.total > 0);
 });
 
+test('a project and its formula stay linked both ways on every write', async () => {
+  await post('/api/auth/logout');
+  await post('/api/auth/login', { email: 'jbradfield@enovascience.com', password: 'enova2026' });
+
+  // project -> formula: creating a project that names a formula stamps the formula
+  const formula = await post('/api/data/formulas', { code: 'F-LINK-1', name: 'Link test formula' });
+  const project = await post('/api/data/projects', { code: 'P-LINK-1', name: 'Link test project', formulaId: formula.id });
+  assert.equal(db.get('formulas', formula.id).projectId, project.id);
+
+  // formula -> project: a formula that names a project fills the project's empty slot
+  const project2 = await post('/api/data/projects', { code: 'P-LINK-2', name: 'Link test project 2' });
+  const formula2 = await post('/api/data/formulas', { code: 'F-LINK-2', name: 'Link test formula 2', projectId: project2.id });
+  assert.equal(db.get('projects', project2.id).formulaId, formula2.id);
+
+  // and re-pointing a project on a patch follows the new formula
+  const formula3 = await post('/api/data/formulas', { code: 'F-LINK-3', name: 'Link test formula 3' });
+  await patch(`/api/data/projects/${project.id}`, { formulaId: formula3.id });
+  assert.equal(db.get('formulas', formula3.id).projectId, project.id);
+});
+
 async function postCsv(url, csv, filename = 'data.csv') {
   const form = new FormData();
   form.append('file', new Blob([csv], { type: 'text/csv' }), filename);

@@ -12,7 +12,7 @@ import { api, useRecord } from '../lib/api';
 import { useUi } from '../lib/ui';
 import { useSession } from '../lib/session';
 import { useViewing, useAlsoHere } from '../lib/realtime';
-import { useCustomers, useFormulas, useUsers } from '../lib/lookups';
+import { useCustomers, useFormulas, useProjects, useUsers } from '../lib/lookups';
 import { Avatar } from '../components/ui';
 import { date, dateTime, number, percent, qty, relative } from '../lib/format';
 import { PRIORITIES, WORK_ORDER_STAGES, findOption } from '@shared/domain';
@@ -36,6 +36,7 @@ export function WorkOrderDetail() {
   const customers = useCustomers();
   const users = useUsers();
   const formulas = useFormulas();
+  const projects = useProjects();
 
   const { data: wo, isLoading } = useRecord<WorkOrder>('workOrders', id);
   useViewing(wo ? `${wo.woNumber}` : null);
@@ -143,6 +144,11 @@ export function WorkOrderDetail() {
           <>
             {wo.productName} · batch <span className="mono">{wo.batchNumber}</span> · {customers.name(wo.customerId)}
             {wo.formulaId && <> · <Link to={`/formulations/${wo.formulaId}`}>{formulas.get(wo.formulaId)?.code ?? 'formula'}</Link></>}
+            {(() => {
+              // Resolve the project from either side of the link.
+              const pid = formulas.get(wo.formulaId)?.projectId || projects.rows.find((p) => p.formulaId === wo.formulaId)?.id;
+              return pid ? <> · <Link to={`/development/${pid}`}>project</Link></> : null;
+            })()}
           </>
         }
         actions={

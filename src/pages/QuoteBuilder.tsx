@@ -235,6 +235,9 @@ export function QuoteBuilder() {
         actions={
           writable && (
             <>
+              {quote?.projectId && (
+                <button type="button" className="btn" onClick={() => navigate(`/development/${quote.projectId}`)}><Icon name="flask" size={13} /> Open project</button>
+              )}
               {!isNew && <button type="button" className="btn" onClick={() => window.open(`/print/quote/${id}`, '_blank')}><Icon name="printer" size={13} /> PDF</button>}
               {quote?.status === 'sent' && (
                 <>

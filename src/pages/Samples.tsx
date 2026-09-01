@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { PageHeader } from '../components/Shell';
@@ -24,7 +25,13 @@ interface BoardResponse {
 
 export function Samples() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { error } = useUi();
+  // A sample belongs to a product: open its project, or failing that its formula.
+  const openSample = (s: Sample) => {
+    if (s.projectId) navigate(`/development/${s.projectId}`);
+    else if (s.formulaId) navigate(`/formulations/${s.formulaId}`);
+  };
   const { can } = useSession();
   const customers = useCustomers();
   const users = useUsers();
@@ -94,12 +101,12 @@ export function Samples() {
           items={filtered.map((s) => ({ ...s, column: s.status, order: s.boardOrder }))}
           onMove={move}
           disabled={!writable}
-          renderCard={(s) => <SampleCard sample={s} customer={s.recipientCompany || customers.name(s.customerId)} />}
+          renderCard={(s) => <SampleCard sample={s} customer={s.recipientCompany || customers.name(s.customerId)} onOpen={() => openSample(s)} />}
         />
       )}
 
       {!isLoading && view === 'list' && (
-        <div className="card"><DataTable columns={columns} rows={filtered} /></div>
+        <div className="card"><DataTable columns={columns} rows={filtered} onRowClick={openSample} /></div>
       )}
 
       <NewSample
@@ -111,10 +118,11 @@ export function Samples() {
   );
 }
 
-function SampleCard({ sample, customer }: { sample: Sample; customer: string }) {
+function SampleCard({ sample, customer, onOpen }: { sample: Sample; customer: string; onOpen: () => void }) {
   const type = findOption(SAMPLE_TYPES, sample.type);
+  const hasHome = Boolean(sample.projectId || sample.formulaId);
   return (
-    <div>
+    <div onDoubleClick={hasHome ? onOpen : undefined}>
       <div className="board-card-accent" data-tone={type.tone} />
       <div className="row-tight" style={{ marginBottom: 4 }}>
         <span className="mono cell-sub">{sample.sampleNumber}</span>
@@ -131,6 +139,11 @@ function SampleCard({ sample, customer }: { sample: Sample; customer: string }) 
           ? <span className="cell-sub nowrap">due {relative(sample.dueBy)}</span>
           : <span className="cell-sub nowrap">{relative(sample.stageEnteredAt)}</span>}
       </div>
+      {hasHome && (
+        <button type="button" className="btn btn-sm btn-ghost btn-block" style={{ marginTop: 6 }} onClick={onOpen}>
+          Open {sample.projectId ? 'project' : 'formula'} <Icon name="arrow-right" size={12} />
+        </button>
+      )}
     </div>
   );
 }

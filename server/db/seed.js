@@ -698,6 +698,11 @@ export function seed(db, { verbose = true } = {}) {
       notes: '',
     }, sys);
   });
+  // The link is bidirectional: a project points at its formula, and the formula
+  // knows which project it belongs to, so every page can find its way back.
+  for (const project of projects) {
+    if (project.formulaId) db.update('formulas', project.formulaId, { projectId: project.id }, sys);
+  }
   log(`${projects.length} development projects`);
 
   // -- lots + inventory transactions --

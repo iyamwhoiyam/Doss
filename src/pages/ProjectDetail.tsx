@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { PageHeader } from '../components/Shell';
 import { Icon } from '../components/Icon';
 import {
   Avatar, AvatarStack, Badge, Card, CardHead, CopyButton, Field, Flag, KeyValue, Loading, Meter,
-  Modal, Section, Select, StatusBadge, Tabs, TextArea, TextInput, Toggle,
+  Modal, NumberInput, Section, Select, StatusBadge, Tabs, TextArea, TextInput, Toggle,
 } from '../components/ui';
 import { api, useList, useRecord } from '../lib/api';
 import { useUi } from '../lib/ui';
@@ -14,17 +14,19 @@ import { useSession } from '../lib/session';
 import { useViewing } from '../lib/realtime';
 import { useCustomers, useUsers } from '../lib/lookups';
 import { date, dateTime, relative, toDateInput } from '../lib/format';
-import { HEALTH, PRIORITIES, PRODUCT_LOCK_STATES, PROJECT_STAGES, PROJECT_TYPES, findOption } from '@shared/domain';
-import type { Formula, LabelReview, Project, Quote, Task } from '../lib/types';
+import { HEALTH, PRIORITIES, PRODUCT_LOCK_STATES, PROJECT_STAGES, PROJECT_TYPES, SAMPLE_STATUS, WORK_ORDER_STAGES, findOption } from '@shared/domain';
+import type { Formula, LabelReview, Project, Quote, Sample, Task, WorkOrder } from '../lib/types';
 
 export function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { error, success } = useUi();
   const { can } = useSession();
   const customers = useCustomers();
   const users = useUsers();
   const [tab, setTab] = useState('plan');
+  const [batchOpen, setBatchOpen] = useState(false);
 
   const { data: project, isLoading } = useRecord<Project>('projects', id);
   useViewing(project ? project.code : null);
@@ -32,6 +34,9 @@ export function ProjectDetail() {
   const { data: formulas } = useList<Formula>('formulas', { where: { projectId: id ?? '' } }, { enabled: Boolean(id) });
   const { data: quotes } = useList<Quote>('quotes', { where: { projectId: id ?? '' } }, { enabled: Boolean(id) });
   const { data: labels } = useList<LabelReview>('labelReviews', { where: { projectId: id ?? '' } }, { enabled: Boolean(id) });
+  // Production and samples hang off the project's formula / the project itself.
+  const { data: workOrders } = useList<WorkOrder>('workOrders', { where: { formulaId: project?.formulaId ?? '__none__' }, sort: '-createdAt' }, { enabled: Boolean(project?.formulaId) });
+  const { data: samples } = useList<Sample>('samples', { where: { projectId: id ?? '' }, sort: '-createdAt' }, { enabled: Boolean(id) });
   const { data: tasks } = useList<Task>('tasks', { where: { refId: id ?? '' }, sort: 'boardOrder' }, { enabled: Boolean(id) });
 
   // A customer-approved product is frozen: the UI disables editing to match the
@@ -122,6 +127,19 @@ export function ProjectDetail() {
         }}
       />
 
+      <StartBatchModal
+        open={batchOpen}
+        project={project}
+        onClose={() => setBatchOpen(false)}
+        onCreated={(woId) => {
+          setBatchOpen(false);
+          success('Batch started', 'Materials have been exploded from the formula. Opening the work order.');
+          queryClient.invalidateQueries({ queryKey: ['collection', 'workOrders'] });
+          queryClient.invalidateQueries({ queryKey: ['production'] });
+          navigate(`/production/${woId}`);
+        }}
+      />
+
       {openGates.length > 0 && (
         <div className="flag" data-tone="warning" style={{ marginBottom: 'var(--s-4)' }}>
           <span className="flag-mark"><Icon name="shield" size={15} /></span>
@@ -142,7 +160,7 @@ export function ProjectDetail() {
             tabs={[
               { value: 'plan', label: 'Plan', count: `${doneMilestones}/${project.milestones.length}`, icon: 'target' },
               { value: 'brief', label: 'Brief', icon: 'file' },
-              { value: 'linked', label: 'Linked records', count: (formulas?.total ?? 0) + (quotes?.total ?? 0) + (labels?.total ?? 0), icon: 'link' },
+              { value: 'linked', label: 'Linked records', count: (formulas?.total ?? 0) + (quotes?.total ?? 0) + (labels?.total ?? 0) + (workOrders?.total ?? 0) + (samples?.total ?? 0), icon: 'link' },
               { value: 'tasks', label: 'Tasks', count: tasks?.total ?? null, icon: 'check' },
             ]}
           />
@@ -279,6 +297,45 @@ export function ProjectDetail() {
                       </Link>
                     ))}
                     {(labels?.rows ?? []).length === 0 && <div className="cell-sub" style={{ padding: 'var(--s-4)' }}>No label review opened yet.</div>}
+                  </div>
+                </Card>
+                <Card>
+                  <CardHead
+                    title="Production"
+                    subtitle="Work orders run from this product's formula"
+                    icon="factory"
+                    actions={can('production.write') && project.formulaId ? (
+                      <button type="button" className="btn btn-sm btn-primary" onClick={() => setBatchOpen(true)}>
+                        <Icon name="play" size={13} /> Start a batch
+                      </button>
+                    ) : null}
+                  />
+                  <div className="card-body-flush">
+                    {(workOrders?.rows ?? []).map((wo) => (
+                      <Link key={wo.id} to={`/production/${wo.id}`} className="list-row">
+                        <Icon name="factory" size={14} className="faint" />
+                        <span className="grow truncate"><span className="mono">{wo.woNumber}</span> · {wo.plannedQty.toLocaleString()} {wo.uom}{wo.line ? ` · ${wo.line}` : ''}</span>
+                        <StatusBadge list={WORK_ORDER_STAGES} value={wo.stage} />
+                      </Link>
+                    ))}
+                    {(workOrders?.rows ?? []).length === 0 && (
+                      <div className="cell-sub" style={{ padding: 'var(--s-4)' }}>
+                        {project.formulaId ? 'No batch has been run yet — Start a batch to explode the formula into a work order.' : 'Link a formula first, then production can start from here.'}
+                      </div>
+                    )}
+                  </div>
+                </Card>
+                <Card>
+                  <CardHead title="Samples" icon="send" actions={<Link to="/samples" className="btn btn-sm">Sample board</Link>} />
+                  <div className="card-body-flush">
+                    {(samples?.rows ?? []).map((s) => (
+                      <Link key={s.id} to="/samples" className="list-row">
+                        <Icon name="send" size={14} className="faint" />
+                        <span className="grow truncate"><span className="mono">{s.sampleNumber}</span> · {s.recipientCompany || s.productName}</span>
+                        <StatusBadge list={SAMPLE_STATUS} value={s.status} />
+                      </Link>
+                    ))}
+                    {(samples?.rows ?? []).length === 0 && <div className="cell-sub" style={{ padding: 'var(--s-4)' }}>No samples sent for this product yet.</div>}
                   </div>
                 </Card>
               </div>
@@ -530,6 +587,56 @@ function RecordApprovalModal({ open, project, onClose, onDone }: {
         <Field label="Note / reference" hint="Optional — PO number, email date, or where the signed approval is filed.">
           <TextArea value={note} onChange={setNote} rows={2} />
         </Field>
+      </div>
+    </Modal>
+  );
+}
+
+/**
+ * The bridge from a product to the floor: explode the project's formula into a
+ * work order (materials, steps, QC checks) and go straight to the batch record.
+ */
+function StartBatchModal({ open, project, onClose, onCreated }: {
+  open: boolean; project: Project; onClose: () => void; onCreated: (workOrderId: string) => void;
+}) {
+  const { error } = useUi();
+  const [plannedQty, setPlannedQty] = useState(10000);
+  const [line, setLine] = useState('');
+  const [busy, setBusy] = useState(false);
+  const lines = ['Gummy Line 1', 'Gummy Line 2', 'Encapsulation 1', 'Encapsulation 2', 'Tablet Press', 'Sachet / Stick Pack', 'Blending', 'Tincture'];
+
+  const start = async () => {
+    setBusy(true);
+    try {
+      const created = await api.post<{ id: string }>('/production/from-formula', {
+        formulaId: project.formulaId, plannedQty, line, priority: project.priority ?? 'normal',
+      });
+      onCreated(created.id);
+    } catch (err) { error(err, 'Could not start the batch'); } finally { setBusy(false); }
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={`Start a batch — ${project.name}`}
+      footer={
+        <>
+          <button type="button" className="btn" onClick={onClose}>Cancel</button>
+          <button type="button" className="btn btn-primary" disabled={busy || plannedQty <= 0} onClick={start}>
+            {busy ? <span className="spinner" /> : <Icon name="play" size={14} />} Create work order
+          </button>
+        </>
+      }
+    >
+      <div className="col">
+        <Flag tone="info" title="This explodes the formula into a work order" detail="Every ingredient and packaging line becomes a material to stage, with overage applied, plus the batch steps and in-process QC checks for this format." />
+        <div className="field-row">
+          <Field label="Planned quantity (units)"><NumberInput value={plannedQty} onChange={setPlannedQty} min={1} /></Field>
+          <Field label="Production line">
+            <Select value={line} onChange={setLine} allowEmpty placeholder="Assign later" options={lines.map((l) => ({ value: l, label: l }))} />
+          </Field>
+        </div>
       </div>
     </Modal>
   );

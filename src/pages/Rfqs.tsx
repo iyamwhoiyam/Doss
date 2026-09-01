@@ -117,7 +117,7 @@ export function Rfqs() {
       )}
 
       {!isLoading && view === 'list' && (
-        <div className="card"><DataTable columns={columns} rows={filtered} /></div>
+        <div className="card"><DataTable columns={columns} rows={filtered} onRowClick={(r) => { if (r.projectId) navigate(`/development/${r.projectId}`); }} /></div>
       )}
 
       <NewRfq

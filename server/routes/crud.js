@@ -18,6 +18,22 @@ import { assertUnlocked } from '../lib/lock.js';
 /** Collections the generic API refuses to expose at all. */
 const PRIVATE = new Set(['sessions']);
 
+/**
+ * A project and its formula reference each other. Keep both sides true on every
+ * write so no page ever has to guess which direction the link was made in —
+ * the kind of referential integrity an ERP is expected to hold.
+ */
+function syncProductLinks(db, collection, row, ctx) {
+  if (collection === 'projects' && row.formulaId) {
+    const formula = db.get('formulas', row.formulaId);
+    if (formula && formula.projectId !== row.id) db.update('formulas', formula.id, { projectId: row.id }, ctx);
+  }
+  if (collection === 'formulas' && row.projectId) {
+    const project = db.get('projects', row.projectId);
+    if (project && !project.formulaId) db.update('projects', project.id, { formulaId: row.id }, ctx);
+  }
+}
+
 function guard(req, collection, mode) {
   const rule = COLLECTION_PERMISSIONS[collection];
   if (!rule) throw new HttpError(404, `Unknown collection "${collection}"`);
@@ -68,7 +84,9 @@ export function crudRouter(db) {
     if (req.collection === 'users') {
       delete body.passwordHash; delete body.passwordSalt;
     }
-    const row = db.insert(req.collection, body, actorContext(req));
+    const ctx = actorContext(req);
+    const row = db.insert(req.collection, body, ctx);
+    syncProductLinks(db, req.collection, row, ctx);
     res.status(201).json(redact(req.collection, row));
   }));
 
@@ -86,6 +104,7 @@ export function crudRouter(db) {
     if (ifMatch !== undefined && ifMatch !== null && ifMatch !== '') ctx.expectedVersion = num(ifMatch, undefined);
 
     const row = db.update(req.collection, req.params.id, body, ctx);
+    syncProductLinks(db, req.collection, row, ctx);
     res.json(redact(req.collection, row));
   }));
 
