@@ -10,6 +10,7 @@ import { Router } from 'express';
 
 import { schemaSummary } from './crud.js';
 import { redact } from '../db/schema.js';
+import { clearDemoData } from '../db/reset.js';
 import { ROLES } from '../../shared/domain.js';
 import { hashPassword, actorContext, requirePermission, HttpError } from '../lib/auth.js';
 import { route, num, requireFields } from '../lib/http.js';
@@ -176,34 +177,17 @@ export function adminRouter(db, hub) {
     if (req.body?.confirm !== 'ERASE') {
       throw new HttpError(400, 'To clear the demo data, send confirm: "ERASE".');
     }
-    const WIPE = [
-      'customers', 'vendors', 'items', 'locations', 'lots', 'inventoryTxns', 'cycleCounts',
-      'projects', 'formulas', 'quotes', 'workOrders', 'labelReviews', 'samples', 'rfqs', 'purchaseOrders',
-      'salesOrders', 'shipments', 'documents', 'tasks', 'comments', 'activity',
-      'notifications', 'savedViews',
-    ];
-    const ctx = actorContext(req);
-    const removed = {};
-    for (const collection of WIPE) {
-      if (!db.has(collection)) continue;
-      const rows = db.all(collection, { includeDeleted: true });
-      for (const row of rows) db.purge(collection, row.id, ctx);
-      if (rows.length) removed[collection] = rows.length;
-    }
-    // Remove every other user (and their sessions) but keep the one resetting.
-    let usersRemoved = 0;
-    for (const user of db.all('users', { includeDeleted: true })) {
-      if (user.id === req.user.id) continue;
-      for (const session of db.find('sessions', { userId: user.id })) db.purge('sessions', session.id);
-      db.purge('users', user.id, ctx);
-      usersRemoved += 1;
-    }
-    if (usersRemoved) removed.users = usersRemoved;
+    // Keeps the account performing the reset; optionally renames it.
+    const { removed, total } = clearDemoData(db, {
+      keepUserId: req.user.id,
+      rename: req.body?.keepName,
+      ctx: actorContext(req),
+    });
 
     logActivity(db, req, {
       type: 'admin',
       title: 'Demo data cleared',
-      detail: `${Object.values(removed).reduce((a, b) => a + b, 0)} records removed — clean production start`,
+      detail: `${total} records removed — clean production start`,
       tone: 'warning',
     });
     res.json({ ok: true, removed });
