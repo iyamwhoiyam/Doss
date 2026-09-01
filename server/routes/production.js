@@ -14,6 +14,7 @@ import { WORK_ORDER_STAGES, can, enumValues } from '../../shared/domain.js';
 import { actorContext, requirePermission, HttpError } from '../lib/auth.js';
 import { route, num, requireFields } from '../lib/http.js';
 import { logActivity, notify } from '../lib/events.js';
+import { explodeFormula } from '../calc/bom.js';
 
 const STAGE_ORDER = enumValues(WORK_ORDER_STAGES);
 
@@ -401,26 +402,19 @@ export function productionRouter(db) {
     const result = db.transaction((tx) => {
       const formula = tx.getOrFail('formulas', req.body.formulaId);
       const plannedQty = num(req.body.plannedQty);
-      const overage = 1 + (formula.overagePct ?? 5) / 100;
-      const servings = formula.servingsPerUnit || 1;
-
-      const materials = [...formula.actives, ...formula.excipients]
-        .filter((ing) => !ing.isBaseFill)
-        .map((ing) => {
-          const perServingMg = (ing.targetMg ?? ing.inputMg ?? 0) * (ing.inputMg != null ? 1 : overage);
-          return {
-            itemId: ing.itemId ?? '',
-            itemCode: ing.code,
-            name: ing.name,
-            lotId: '',
-            lotNumber: '',
-            plannedQty: Number(((perServingMg * servings * plannedQty) / 1_000_000).toFixed(4)),
-            issuedQty: 0,
-            uom: 'kg',
-            issuedAt: null,
-            issuedBy: '',
-          };
-        });
+      // One BOM explosion shared with planning, so a batch stages exactly what MRP forecast.
+      const materials = explodeFormula(formula, plannedQty).map((need) => ({
+        itemId: need.itemId,
+        itemCode: need.itemCode,
+        name: need.name,
+        lotId: '',
+        lotNumber: '',
+        plannedQty: need.qty,
+        issuedQty: 0,
+        uom: need.uom,
+        issuedAt: null,
+        issuedBy: '',
+      }));
 
       const steps = (req.body.steps ?? [
         'Sanitation verification', 'Dispensing / weighing', 'Blending', 'Blend uniformity sample',

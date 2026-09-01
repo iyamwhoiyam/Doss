@@ -43,6 +43,7 @@ domain — see **[DEPLOY.md](DEPLOY.md)**. The whole platform runs from
 | **Dashboard** | Live KPIs, the floor by stage, twelve weeks of throughput, everything that needs attention, your own work, the activity stream |
 | **Production** | Drag-and-drop stage board, electronic batch records, material issue against specific lots, in-process QC checks, deviations, QA release |
 | **Schedule** | Line-by-line planning timeline — drag a batch onto a line and a day to reschedule it, with daily capacity load and a tray of batches awaiting a slot |
+| **Planning** | Time-phased MRP — demand from open batches and the order book (exploded through the formula), supply from open POs, projected on-hand by week, and planned buys dated back by lead time that draft straight into purchase orders |
 | **Inventory** | On-hand by item and lot, receiving, QA disposition, adjustments, transfers, cycle counts, reorder and expiry alerts, full lot genealogy |
 | **Vendors & POs** | Vendor qualification and scorecards, purchase order lifecycle, receiving against a PO, reorder suggestions that draft POs per vendor |
 | **Development** | Stage-gated project pipeline with milestones, gate checks, requirements and risks — plus product change control: fully editable until the customer e-signs approval on a private link, which locks the formula, label, packaging and price as the production-of-record; changes then require a revision |

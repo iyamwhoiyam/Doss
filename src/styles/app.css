@@ -1084,3 +1084,23 @@ a.list-row:hover { text-decoration: none; }
   .print-page { box-shadow: none; margin: 0; max-width: none; padding: 0; border-radius: 0; }
   @page { margin: 18mm; }
 }
+
+/* ── material planning (MRP) grid ──────────────────────────────────────────── */
+.mrp-scroll { overflow-x: auto; }
+.mrp { width: 100%; border-collapse: collapse; font-size: var(--t-sm); min-width: 900px; }
+.mrp th { position: sticky; top: 0; background: var(--surface-2); text-align: left; font-size: var(--t-xs); text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); padding: var(--s-2) var(--s-3); border-bottom: 1px solid var(--line); white-space: nowrap; }
+.mrp th.right, .mrp td.right { text-align: right; }
+.mrp-item { min-width: 260px; max-width: 320px; position: sticky; left: 0; background: var(--surface-1); z-index: 1; }
+.mrp th.mrp-item { z-index: 2; background: var(--surface-2); }
+.mrp-row { cursor: pointer; }
+.mrp-row:hover td { background: var(--surface-2); }
+.mrp-row[data-short] .mrp-item { box-shadow: inset 3px 0 0 var(--tone-danger-fg); }
+.mrp td { padding: var(--s-2) var(--s-3); border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+.mrp-cell { min-width: 72px; }
+.mrp-cell[data-tone='danger'] { background: var(--tone-danger-bg); color: var(--tone-danger-fg); font-weight: 600; }
+.mrp-cell[data-tone='warning'] { background: var(--tone-warning-bg); color: var(--tone-warning-fg); }
+.mrp-cell[data-tone='info'] { background: var(--tone-info-bg); }
+.mrp-proj { font-variant-numeric: tabular-nums; }
+.mrp-flow { display: flex; justify-content: flex-end; gap: 6px; font-size: 10px; margin-top: 2px; opacity: 0.85; }
+.mrp-d { color: var(--tone-danger-fg); } .mrp-s { color: var(--tone-success-fg); } .mrp-p { color: var(--tone-info-fg); }
+.mrp-detail td { background: var(--surface-2); padding: var(--s-3) var(--s-4); }

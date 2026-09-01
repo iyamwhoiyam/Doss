@@ -392,6 +392,7 @@ export const NAV = [
   { group: 'Make', items: [
     { to: '/production', label: 'Production', icon: 'factory' },
     { to: '/schedule', label: 'Schedule', icon: 'calendar' },
+    { to: '/planning', label: 'Planning', icon: 'target', perm: 'cost.view' },
     { to: '/inventory', label: 'Inventory', icon: 'boxes' },
     { to: '/purchasing', label: 'Vendors & POs', icon: 'truck' },
   ] },

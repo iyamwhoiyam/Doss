@@ -65,7 +65,12 @@ export function purchasingRouter(db) {
         const vendorId = item.defaultVendorId;
         if (!vendorId) throw new HttpError(422, `${item.name} has no preferred vendor — set one before drafting a purchase order`);
         const position = itemPosition(db, item);
-        const qty = Math.max(0, (item.reorderQty || 0) - position.onOrder);
+        // A planner can name the exact quantity (MRP's planned buy); otherwise
+        // fall back to the standard reorder lot net of what is already on order.
+        const requested = Number(req.body.qtyById?.[item.id]);
+        const qty = Number.isFinite(requested) && requested > 0
+          ? requested
+          : Math.max(0, (item.reorderQty || 0) - position.onOrder);
         if (qty <= 0) continue;
         if (!byVendor.has(vendorId)) byVendor.set(vendorId, []);
         byVendor.get(vendorId).push({
@@ -91,7 +96,7 @@ export function purchasingRouter(db) {
           expectedAt: new Date(Date.now() + (vendor.leadTimeDays || 21) * DAY).toISOString(),
           terms: vendor.paymentTerms,
           shipTo: db.findOne('settings', { key: 'company.address' })?.value ?? '',
-          notes: 'Drafted from reorder suggestions.',
+          notes: req.body.note ? String(req.body.note) : 'Drafted from reorder suggestions.',
         }, ctx);
       });
     }, ctx);

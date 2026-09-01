@@ -743,6 +743,46 @@ test('a project and its formula stay linked both ways on every write', async () 
   assert.equal(db.get('formulas', formula3.id).projectId, project.id);
 });
 
+test('MRP nets demand against supply week by week and plans buys by date', async () => {
+  await post('/api/auth/logout');
+  await post('/api/auth/login', { email: 'jbradfield@enovascience.com', password: 'enova2026' });
+
+  const plan = await get('/api/planning/mrp?weeks=8');
+  assert.equal(plan.weeks.length, 8);
+  assert.ok(plan.items.length > 0, 'the floor and order book create requirements');
+
+  // the running balance is internally consistent for every item, every week
+  for (const item of plan.items) {
+    let prev = item.onHand;
+    for (const c of item.cells) {
+      const expected = prev + c.supply + c.planned - c.demand;
+      assert.ok(Math.abs(c.projected - expected) < 0.01, `${item.itemCode} ${c.week}: ${c.projected} vs ${expected}`);
+      prev = c.projected;
+    }
+  }
+
+  // an open work order's unissued material is demand
+  const wo = db.find('workOrders').find((w) => !['complete', 'cancelled'].includes(w.stage)
+    && w.materials.some((m) => m.itemId && (m.plannedQty - (m.issuedQty || 0)) > 0));
+  const material = wo.materials.find((m) => m.itemId && (m.plannedQty - (m.issuedQty || 0)) > 0);
+  const row = plan.items.find((i) => i.itemId === material.itemId);
+  assert.ok(row && row.cells.reduce((s, c) => s + c.demand, 0) > 0, 'work-order material appears as demand');
+
+  // a planned buy is dated back by the lead time and drafts into a PO at the planned quantity
+  const buy = plan.buys.find((b) => {
+    const item = db.get('items', b.itemId);
+    const vendor = item?.defaultVendorId ? db.get('vendors', item.defaultVendorId) : null;
+    return vendor && vendor.status !== 'disqualified';
+  });
+  if (buy) {
+    assert.ok(Date.parse(buy.orderBy) <= Date.parse(buy.week), 'order-by date precedes the week of need');
+    const drafted = await post('/api/purchasing/draft-from-suggestions', { itemIds: [buy.itemId], qtyById: { [buy.itemId]: buy.qty }, note: 'Planned by MRP' });
+    assert.ok(drafted.count >= 1);
+    const line = drafted.created.flatMap((po) => po.lines).find((l) => l.itemId === buy.itemId);
+    assert.equal(line.qty, buy.qty, 'the PO line carries the MRP-planned quantity');
+  }
+});
+
 async function postCsv(url, csv, filename = 'data.csv') {
   const form = new FormData();
   form.append('file', new Blob([csv], { type: 'text/csv' }), filename);
