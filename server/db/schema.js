@@ -246,6 +246,10 @@ export const schema = {
       brandOwner: str('Trademark owner'),
       labelName: str('Label declaration name'),
       requiresCoa: bool('Requires COA', true),
+      // Set when this item is something Enova makes rather than buys — a finished
+      // good or an intermediate blend. Planning then raises batches for it, not
+      // purchase orders, and explodes those batches into their own ingredients.
+      madeByFormulaId: str('Made by formula'),
       active: bool('Active', true),
       notes: str('Notes'),
       tags: arr('Tags'),
@@ -404,6 +408,10 @@ export const schema = {
       overagePct: num('Overage %', { default: 5 }),
       actives: arr('Active ingredients'),
       excipients: arr('Excipients'),
+      // The stockable item this formula makes — a finished good, or an
+      // intermediate (a blend) that another formula consumes. Kept in sync with
+      // items.madeByFormulaId so a bill of materials can go more than one level.
+      producesItemId: str('Produces item'),
       packaging: arr('Packaging'),
       services: arr('Manufacturing services'),
       allergens: arr('Allergens'),
@@ -479,6 +487,11 @@ export const schema = {
       stageEnteredAt: date('Stage entered'),
       releasedBy: str('Released by'),
       releasedAt: date('Released'),
+      // What the batch actually made: the finished-goods lot it produced and the
+      // real material cost behind it (from the lots that were issued).
+      outputLotId: str('Output lot'),
+      actualMaterialCost: num('Actual material cost'),
+      actualUnitCost: num('Actual cost per unit'),
       notes: str('Notes'),
       tags: arr('Tags'),
     },

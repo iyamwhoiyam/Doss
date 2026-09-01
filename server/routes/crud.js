@@ -32,6 +32,15 @@ function syncProductLinks(db, collection, row, ctx) {
     const project = db.get('projects', row.projectId);
     if (project && !project.formulaId) db.update('projects', project.id, { formulaId: row.id }, ctx);
   }
+  // A formula and the item it produces reference each other too.
+  if (collection === 'formulas' && row.producesItemId) {
+    const item = db.get('items', row.producesItemId);
+    if (item && item.madeByFormulaId !== row.id) db.update('items', item.id, { madeByFormulaId: row.id }, ctx);
+  }
+  if (collection === 'items' && row.madeByFormulaId) {
+    const formula = db.get('formulas', row.madeByFormulaId);
+    if (formula && formula.producesItemId !== row.id) db.update('formulas', formula.id, { producesItemId: row.id }, ctx);
+  }
 }
 
 function guard(req, collection, mode) {

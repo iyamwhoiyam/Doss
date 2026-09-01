@@ -783,6 +783,70 @@ test('MRP nets demand against supply week by week and plans buys by date', async
   }
 });
 
+test('recording batch output puts a real finished-goods lot into stock at actual cost', async () => {
+  await post('/api/auth/logout');
+  await post('/api/auth/login', { email: 'jbradfield@enovascience.com', password: 'enova2026' });
+
+  const wo = db.find('workOrders').find((w) => w.formulaId && !['complete', 'cancelled'].includes(w.stage));
+  const out = await post(`/api/production/${wo.id}/output`, { actualQty: 1000 });
+  assert.ok(out.outputLotId, 'the batch now points at the lot it produced');
+
+  const lot = db.get('lots', out.outputLotId);
+  assert.equal(lot.status, 'quarantine', 'output waits for QA release');
+  assert.equal(lot.qtyOnHand, 1000);
+  assert.equal(lot.workOrderId, wo.id);
+
+  const item = db.get('items', lot.itemId);
+  assert.equal(item.type, 'finished_good', 'the produced item is a real, stockable item');
+  assert.equal(item.madeByFormulaId, wo.formulaId);
+  assert.equal(db.get('formulas', wo.formulaId).producesItemId, item.id, 'formula and item link both ways');
+
+  // recording output again corrects the same lot instead of creating a second
+  const again = await post(`/api/production/${wo.id}/output`, { actualQty: 1200 });
+  assert.equal(again.outputLotId, out.outputLotId);
+  assert.equal(db.get('lots', out.outputLotId).qtyOnHand, 1200);
+  assert.equal(db.find('lots', { workOrderId: wo.id }).length, 1);
+});
+
+test('MRP plans a made intermediate as a batch and pulls its ingredients as dependent demand', async () => {
+  const raw = db.find('items', { type: 'raw_material' })[0];
+  // a blend formula: one unit = 1 g of blend, all of it this raw material
+  const blend = await post('/api/data/formulas', {
+    code: 'F-BLEND-1', name: 'Test blend', format: 'powder', servingsPerUnit: 1, totalFormatWeightMg: 1000,
+    actives: [{ itemId: raw.id, code: raw.itemCode, name: raw.name, targetMg: 1000 }],
+  });
+  // the stockable intermediate it produces, linked from the item side
+  const blendItem = await post('/api/data/items', { itemCode: 'WIP-BLEND-1', name: 'Test blend (bulk)', type: 'work_in_process', uom: 'kg', madeByFormulaId: blend.id, leadTimeDays: 7 });
+  assert.equal(db.get('formulas', blend.id).producesItemId, blendItem.id, 'item and formula link both ways');
+
+  // a fill formula that consumes the blend
+  const fill = await post('/api/data/formulas', {
+    code: 'F-FILL-1', name: 'Test fill', format: 'capsule', servingsPerUnit: 30,
+    actives: [{ itemId: blendItem.id, code: 'WIP-BLEND-1', name: 'Test blend', targetMg: 500 }],
+  });
+  // an uncovered confirmed order for the fill, three weeks out
+  const customer = db.find('customers')[0];
+  const due = new Date(Date.now() + 21 * 86_400_000).toISOString().slice(0, 10);
+  await post('/api/data/salesOrders', {
+    orderNumber: 'SO-MRP-1', customerId: customer.id, status: 'confirmed',
+    lines: [{ formulaId: fill.id, description: 'fill', qty: 10000, uom: 'ea', unitPrice: 1, shipped: 0 }],
+    subtotal: 10000, total: 10000, requestedShipDate: due, promisedShipDate: due,
+  });
+
+  const plan = await get('/api/planning/mrp?weeks=8');
+  const blendRow = plan.items.find((i) => i.itemId === blendItem.id);
+  assert.ok(blendRow, 'the fill order creates demand for the blend');
+  assert.ok(blendRow.plannedOrders.length > 0 && blendRow.plannedOrders.every((o) => o.kind === 'make'), 'a made item is planned as a batch');
+  assert.ok(plan.makes.some((m) => m.itemId === blendItem.id) && !plan.buys.some((b) => b.itemId === blendItem.id), 'never a purchase');
+
+  const rawRow = plan.items.find((i) => i.itemId === raw.id);
+  assert.ok(rawRow && rawRow.sources.some((s) => s.type === 'plannedBatch' && s.id === blendItem.id), 'the planned blend batch pulls its raw material as dependent demand');
+  // and the ingredient is due before the blend is: one level earlier in the horizon
+  const blendWeek = blendRow.plannedOrders[0].week;
+  const rawFromBlend = rawRow.sources.find((s) => s.type === 'plannedBatch' && s.id === blendItem.id).week;
+  assert.ok(rawFromBlend <= blendWeek);
+});
+
 async function postCsv(url, csv, filename = 'data.csv') {
   const form = new FormData();
   form.append('file', new Blob([csv], { type: 'text/csv' }), filename);

@@ -196,6 +196,13 @@ export function productionRouter(db) {
     }
 
     const updated = db.update('workOrders', wo.id, patch, ctx);
+    // QA release of the batch releases the lot it produced.
+    if (patch.stage === 'complete' && wo.outputLotId) {
+      const lot = db.get('lots', wo.outputLotId);
+      if (lot && lot.status === 'quarantine') {
+        db.update('lots', lot.id, { status: 'released', dispositionBy: req.user.id, dispositionAt: new Date().toISOString() }, ctx);
+      }
+    }
     if (patch.stage) {
       logActivity(db, req, {
         type: 'work_order',
@@ -365,31 +372,96 @@ export function productionRouter(db) {
   }));
 
   /** Record the actual output and post it to finished goods. */
+  /**
+   * Record the actual output and put it into stock as a real lot.
+   *
+   * What a batch makes is an item like any other: a finished good, or an
+   * intermediate another batch will consume. The formula names that item
+   * (creating it on first use), the output lands as a quarantined lot in
+   * finished goods, and QA release of the batch releases the lot. The lot
+   * carries the batch's actual material cost per unit, computed from the lots
+   * that were issued to it — the actual side of standard-versus-actual.
+   */
   router.post('/:id/output', requirePermission('production.write'), route((req, res) => {
     requireFields(req.body ?? {}, ['actualQty']);
     const ctx = actorContext(req);
     const result = db.transaction((tx) => {
       const wo = tx.getOrFail('workOrders', req.params.id);
       const actualQty = num(req.body.actualQty);
-      const patch = {
-        actualQty,
-        yieldPct: wo.plannedQty ? Number(((actualQty / wo.plannedQty) * 100).toFixed(1)) : 0,
-      };
+      if (!(actualQty > 0)) throw new HttpError(422, 'Actual quantity must be greater than zero');
+      const now = new Date().toISOString();
       const fg = tx.findOne('locations', { code: 'FG-01' });
+
+      // The item this batch produces — named by the formula, created on first use.
+      const formula = wo.formulaId ? tx.get('formulas', wo.formulaId) : null;
+      let item = formula?.producesItemId ? tx.get('items', formula.producesItemId) : null;
+      if (!item && formula) {
+        item = tx.insert('items', {
+          itemCode: `FG-${formula.code}`,
+          name: formula.name,
+          type: 'finished_good',
+          category: 'Finished good',
+          uom: wo.uom || 'ea',
+          madeByFormulaId: formula.id,
+          defaultLocationId: fg?.id ?? '',
+          active: true,
+          tags: [],
+        }, ctx);
+        tx.update('formulas', formula.id, { producesItemId: item.id }, ctx);
+      }
+
+      // Actual material cost: every issue against this batch, at the lot cost it came from.
+      const issues = tx.find('inventoryTxns', { refType: 'workOrder', refId: wo.id, type: 'issue' });
+      const materialCost = Number(issues.reduce((sum, t) => sum + Math.abs(t.qty || 0) * (t.unitCost || 0), 0).toFixed(2));
+      const unitCost = Number((materialCost / actualQty).toFixed(4));
+
+      let lot = wo.outputLotId ? tx.get('lots', wo.outputLotId) : null;
+      if (item && lot) {
+        // Output recorded again: correct the same lot rather than making a second one.
+        lot = tx.update('lots', lot.id, { qtyReceived: actualQty, qtyOnHand: actualQty, unitCost }, ctx);
+      } else if (item) {
+        lot = tx.insert('lots', {
+          lotNumber: wo.batchNumber || tx.nextSequence('LOT', 'L{yy}-{n:5}'),
+          itemId: item.id,
+          workOrderId: wo.id,
+          status: 'quarantine',
+          qtyReceived: actualQty,
+          qtyOnHand: actualQty,
+          uom: wo.uom || 'ea',
+          locationId: fg?.id ?? '',
+          unitCost,
+          receivedAt: now,
+          manufacturedAt: now,
+          expiresAt: item.shelfLifeDays ? new Date(Date.now() + item.shelfLifeDays * 86_400_000).toISOString() : null,
+          coaReceived: false,
+          testResults: [],
+          notes: `Produced by ${wo.woNumber}`,
+        }, ctx);
+      }
+
       tx.insert('inventoryTxns', {
         txnNumber: tx.nextSequence('TXN', 'T-{n:6}'),
         type: 'receipt',
-        itemId: wo.formulaId,
+        itemId: item?.id ?? wo.formulaId,
+        lotId: lot?.id ?? '',
         qty: actualQty,
         uom: wo.uom,
         toLocationId: fg?.id ?? '',
         refType: 'workOrder',
         refId: wo.id,
         reason: `Finished goods from ${wo.woNumber} batch ${wo.batchNumber}`,
+        unitCost,
         balanceAfter: actualQty,
-        performedAt: new Date().toISOString(),
+        performedAt: now,
       }, ctx);
-      return tx.update('workOrders', wo.id, patch, ctx);
+
+      return tx.update('workOrders', wo.id, {
+        actualQty,
+        yieldPct: wo.plannedQty ? Number(((actualQty / wo.plannedQty) * 100).toFixed(1)) : 0,
+        outputLotId: lot?.id ?? wo.outputLotId ?? '',
+        actualMaterialCost: materialCost,
+        actualUnitCost: unitCost,
+      }, ctx);
     }, ctx);
     res.json(result);
   }));

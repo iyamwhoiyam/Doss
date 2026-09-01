@@ -16,7 +16,8 @@ interface PlanItem {
   itemId: string; itemCode: string; name: string; uom: string; onHand: number; safetyStock: number;
   leadTimeDays: number; reorderQty: number; vendorId: string; vendorName: string;
   cells: Cell[]; shortWeek: string | null;
-  plannedOrders: { week: string; qty: number; orderBy: string; late: boolean }[];
+  made?: boolean;
+  plannedOrders: { week: string; qty: number; orderBy: string; late: boolean; kind?: 'make' | 'buy' }[];
   sources: { type: string; ref: string; id: string; week: string; qty: number }[];
 }
 interface Buy { itemId: string; itemCode: string; name: string; uom: string; qty: number; week: string; orderBy: string; late: boolean; vendorId: string; vendorName: string }
@@ -145,8 +146,8 @@ export function Planning() {
                             {item.plannedOrders.length === 0 && <div className="cell-sub">None — covered through the horizon.</div>}
                             {item.plannedOrders.map((p) => (
                               <div key={p.week} className="row-tight">
-                                <Badge tone={p.late ? 'danger' : 'info'}>{number(p.qty, 1)} {item.uom}</Badge>
-                                <span className="cell-sub">for week of {wk(p.week)} · order by <strong>{wk(p.orderBy)}</strong>{p.late ? ' — late' : ''}</span>
+                                <Badge tone={p.late ? 'danger' : p.kind === 'make' ? 'progress' : 'info'}>{p.kind === 'make' ? 'Make' : 'Buy'} {number(p.qty, 1)} {item.uom}</Badge>
+                                <span className="cell-sub">for week of {wk(p.week)} · {p.kind === 'make' ? 'start batch by' : 'order by'} <strong>{wk(p.orderBy)}</strong>{p.late ? ' — late' : ''}</span>
                               </div>
                             ))}
                           </div>

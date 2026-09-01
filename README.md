@@ -41,9 +41,9 @@ domain — see **[DEPLOY.md](DEPLOY.md)**. The whole platform runs from
 | Module | What it covers |
 | --- | --- |
 | **Dashboard** | Live KPIs, the floor by stage, twelve weeks of throughput, everything that needs attention, your own work, the activity stream |
-| **Production** | Drag-and-drop stage board, electronic batch records, material issue against specific lots, in-process QC checks, deviations, QA release |
+| **Production** | Drag-and-drop stage board, electronic batch records, material issue against specific lots, in-process QC checks, deviations, QA release — and every batch's output becomes a real finished-goods lot in stock, at its actual material cost, released when QA releases the batch |
 | **Schedule** | Line-by-line planning timeline — drag a batch onto a line and a day to reschedule it, with daily capacity load and a tray of batches awaiting a slot |
-| **Planning** | Time-phased MRP — demand from open batches and the order book (exploded through the formula), supply from open POs, projected on-hand by week, and planned buys dated back by lead time that draft straight into purchase orders |
+| **Planning** | Time-phased MRP — demand from open batches and the order book (exploded through the formula), supply from open POs, projected on-hand by week, and planned buys dated back by lead time that draft straight into purchase orders. Multi-level: an intermediate blend is planned as a batch, and only its planned batches pull their own ingredients, so stock on the shelf never double-counts |
 | **Inventory** | On-hand by item and lot, receiving, QA disposition, adjustments, transfers, cycle counts, reorder and expiry alerts, full lot genealogy |
 | **Vendors & POs** | Vendor qualification and scorecards, purchase order lifecycle, receiving against a PO, reorder suggestions that draft POs per vendor |
 | **Development** | Stage-gated project pipeline with milestones, gate checks, requirements and risks — plus product change control: fully editable until the customer e-signs approval on a private link, which locks the formula, label, packaging and price as the production-of-record; changes then require a revision |
