@@ -147,7 +147,7 @@ test('every write lands in the audit trail with the actor', async () => {
   const history = await get(`/api/data/customers/${customer.id}/history`);
   assert.equal(history.entries.length, 2);
   assert.equal(history.entries[0].op, 'update');
-  assert.equal(history.entries[0].actorName, 'Jordan Bradfield');
+  assert.equal(history.entries[0].actorName, 'Joe Bradfield');
   assert.deepEqual(history.entries[0].changes, [{ field: 'tier', from: 'standard', to: 'key' }]);
 });
 
@@ -521,14 +521,14 @@ test('live sync pushes database changes to connected clients', async () => {
   };
 
   const hello = await readEvent('hello');
-  assert.equal(hello.you.email ?? hello.you.name, 'Jordan Bradfield');
+  assert.equal(hello.you.email ?? hello.you.name, 'Joe Bradfield');
 
   await post('/api/data/tasks', { title: 'Realtime smoke test', status: 'todo' });
   const change = await readEvent('change');
   assert.equal(change.collection, 'tasks');
   assert.equal(change.op, 'insert');
   assert.equal(change.record.title, 'Realtime smoke test');
-  assert.equal(change.actorName, 'Jordan Bradfield');
+  assert.equal(change.actorName, 'Joe Bradfield');
 
   controller.abort();
 });

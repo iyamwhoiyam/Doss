@@ -63,7 +63,7 @@ const SPECS = {
       { header: 'Department', field: 'department' },
       { header: 'Phone', field: 'phone' },
     ],
-    example: { Name: 'Jordan Bradfield', Email: 'jbradfield@enovascience.com', Role: 'admin', Title: 'Operations Lead', Department: 'Operations', Phone: '555-0100' },
+    example: { Name: 'Joe Bradfield', Email: 'jbradfield@enovascience.com', Role: 'admin', Title: 'Operations Lead', Department: 'Operations', Phone: '555-0100' },
     build(row) {
       const errors = [];
       const name = clean(row.Name);

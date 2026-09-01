@@ -47,7 +47,7 @@ const dateOnly = (n) => iso(Date.now() + n * DAY).slice(0, 10);
 
 // ── the people ─────────────────────────────────────────────────────────────
 const STAFF = [
-  ['Jordan Bradfield', 'jbradfield@enovascience.com', 'admin', 'Director of Operations', 'Operations'],
+  ['Joe Bradfield', 'jbradfield@enovascience.com', 'admin', 'Director of Operations', 'Operations'],
   ['Marisol Vega', 'mvega@enovascience.com', 'executive', 'Chief Executive Officer', 'Executive'],
   ['Curtis Okonkwo', 'cokonkwo@enovascience.com', 'executive', 'VP Commercial', 'Executive'],
   ['Priya Raghavan', 'praghavan@enovascience.com', 'operations', 'Plant Manager', 'Operations'],
