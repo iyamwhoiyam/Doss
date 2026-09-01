@@ -12,6 +12,10 @@ interface Overview {
   inventory: { rows: { item: string; itemCode: string; qty: number; uom: string; value: number }[]; total: number };
   pipeline: { counts: Record<string, number>; won: number; lost: number; winRate: number; openValue: number; open: number };
   delivery: { total: number; onTime: number; late: number; rate: number; rows: { orderNumber: string; promised: string; shipped: string; onTime: boolean }[] };
+  variance: {
+    batches: number; totalVariance: number; avgYield: number | null;
+    rows: { id: string; woNumber: string; productName: string; plannedQty: number; actualQty: number; yieldPct: number | null; standardUnitCost: number; actualUnitCost: number; unitVariance: number; unitVariancePct: number; totalVariance: number; favorable: boolean }[];
+  };
 }
 
 function ExportLink({ report }: { report: string }) {
@@ -72,6 +76,37 @@ export function Reports() {
         <div className="card-body">
           <BarChart data={data.throughput.map((w) => ({ label: weeksLabel(w.week), value: w.units }))} height={180} format={(v) => `${compact(v)} units`} />
         </div>
+      </Card>
+
+      <Card style={{ marginBottom: 'var(--s-4)' }}>
+        <CardHead
+          title="Cost & yield variance"
+          subtitle={data.variance.batches
+            ? `${data.variance.batches} costed batch${data.variance.batches === 1 ? '' : 'es'} · net ${money(Math.abs(data.variance.totalVariance), 0)} ${data.variance.totalVariance <= 0 ? 'favorable' : 'unfavorable'} · average yield ${data.variance.avgYield}%`
+            : 'Standard material cost per unit, frozen when a batch is planned, against what the issued lots actually cost'}
+          icon="scale"
+          actions={<ExportLink report="cost-variance" />}
+        />
+        {data.variance.rows.length > 0 ? (
+          <DataTable
+            columns={[
+              { key: 'wo', header: 'Batch', sortValue: (r) => r.woNumber, render: (r) => <span className="mono">{r.woNumber}</span> },
+              { key: 'product', header: 'Product', sortValue: (r) => r.productName, render: (r) => <span className="truncate">{r.productName}</span> },
+              { key: 'qty', header: 'Planned → actual', numeric: true, sortValue: (r) => r.actualQty, render: (r) => `${number(r.plannedQty)} → ${number(r.actualQty)}` },
+              { key: 'yield', header: 'Yield', numeric: true, sortValue: (r) => r.yieldPct ?? 0, render: (r) => (r.yieldPct != null ? `${r.yieldPct}%` : '—') },
+              { key: 'std', header: 'Std $/unit', numeric: true, sortValue: (r) => r.standardUnitCost, render: (r) => money(r.standardUnitCost, 4) },
+              { key: 'act', header: 'Actual $/unit', numeric: true, sortValue: (r) => r.actualUnitCost, render: (r) => money(r.actualUnitCost, 4) },
+              { key: 'var', header: 'Variance', numeric: true, sortValue: (r) => r.totalVariance, render: (r) => (
+                <span className="tone-text" data-tone={r.favorable ? 'success' : 'danger'}>
+                  {r.favorable ? '−' : '+'}{money(Math.abs(r.totalVariance), 0)} ({r.unitVariancePct > 0 ? '+' : ''}{r.unitVariancePct}%)
+                </span>
+              ) },
+            ] as Column<Overview['variance']['rows'][number]>[]}
+            rows={data.variance.rows.slice(0, 25)}
+          />
+        ) : (
+          <div className="card-body cell-sub">No costed batches yet. A batch started from a formula records its standard cost; its actual cost lands when output is recorded, and the variance shows here.</div>
+        )}
       </Card>
 
       <div className="split">

@@ -323,6 +323,37 @@ export function WorkOrderDetail() {
             />
           </Section>
 
+          {(() => {
+            // Standard (frozen at planning) vs actual (from the lots issued, once output is recorded).
+            const std = wo.standardUnitCost ?? 0;
+            if (std <= 0) return null;
+            const act = wo.actualUnitCost ?? 0;
+            const costed = wo.actualQty > 0 && act > 0;
+            const v = act - std;
+            return (
+              <div className="card" style={{ marginBottom: 'var(--s-4)' }}>
+                <div className="card-body row" style={{ gap: 'var(--s-6)', flexWrap: 'wrap' }}>
+                  <div><div className="cell-sub">Standard material cost / unit</div><div className="cell-primary">${std.toFixed(4)}</div></div>
+                  <div><div className="cell-sub">Standard material total</div><div className="cell-primary">${(wo.standardMaterialCost ?? std * wo.plannedQty).toFixed(2)}</div></div>
+                  {costed ? (
+                    <>
+                      <div><div className="cell-sub">Actual material cost / unit</div><div className="cell-primary">${act.toFixed(4)}</div></div>
+                      <div><div className="cell-sub">Actual material total</div><div className="cell-primary">${(wo.actualMaterialCost ?? act * wo.actualQty).toFixed(2)}</div></div>
+                      <div>
+                        <div className="cell-sub">Variance / unit</div>
+                        <div className="cell-primary tone-text" data-tone={v <= 0 ? 'success' : 'danger'}>{v <= 0 ? '−' : '+'}${Math.abs(v).toFixed(4)} ({v > 0 ? '+' : ''}{((v / std) * 100).toFixed(1)}%)</div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="cell-sub" style={{ alignSelf: 'center' }}>
+                      {wo.actualQty > 0 ? 'No materials were issued against this batch, so there is no actual cost to compare yet.' : 'Actual cost lands when materials are issued and output is recorded.'}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
           {writable && wo.stage !== 'planned' && (
             <Section title="Record output" icon="scale" subtitle="Posts finished goods and computes the yield">
               <RecordOutput workOrderId={wo.id} plannedQty={wo.plannedQty} actualQty={wo.actualQty} onDone={refresh} />

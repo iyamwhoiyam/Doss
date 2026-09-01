@@ -22,3 +22,20 @@ export function explodeFormula(formula, units) {
       };
     });
 }
+
+/**
+ * Standard material cost per unit for a formula: the quote engine's raw-material
+ * figure, with any line that carries no price of its own priced off the item
+ * master (price per kg, else cost per UOM). Lines with neither cost nothing,
+ * which the caller can treat as "no standard yet".
+ */
+export function standardUnitCost(db, formula, buildFormula) {
+  const priced = (lines) => (lines ?? []).map((line) => {
+    if (Number(line.pricePerKg) > 0 || !line.itemId) return line;
+    const item = db.get('items', line.itemId);
+    const price = Number(item?.pricePerKg) > 0 ? Number(item.pricePerKg) : Number(item?.costPerUom) > 0 ? Number(item.costPerUom) : 0;
+    return price > 0 ? { ...line, pricePerKg: price } : line;
+  });
+  const built = buildFormula({ ...formula, actives: priced(formula.actives), excipients: priced(formula.excipients) });
+  return Number(built.costSummary?.rawMaterialsPerUnit ?? 0);
+}

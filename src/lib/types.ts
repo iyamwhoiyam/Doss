@@ -271,6 +271,8 @@ export interface WorkOrder extends BaseRecord {
   plannedStart: string | null; plannedEnd: string | null; actualStart: string | null; actualEnd: string | null;
   supervisorId: string; operatorIds: string[];
   materials: WorkOrderMaterial[]; steps: BatchStep[]; qcChecks: QcCheck[]; deviations: Deviation[];
+  standardUnitCost?: number; standardMaterialCost?: number;
+  actualUnitCost?: number; actualMaterialCost?: number; outputLotId?: string;
   yieldPct: number; holdReason: string; boardOrder: number; stageEnteredAt: string | null;
   releasedBy: string; releasedAt: string | null; notes: string; tags: string[];
 }

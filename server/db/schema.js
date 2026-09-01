@@ -492,6 +492,10 @@ export const schema = {
       outputLotId: str('Output lot'),
       actualMaterialCost: num('Actual material cost'),
       actualUnitCost: num('Actual cost per unit'),
+      // The standard, frozen when the batch was planned, so variance is measured
+      // against what we expected then — not against today's price list.
+      standardUnitCost: num('Standard material cost per unit'),
+      standardMaterialCost: num('Standard material cost'),
       notes: str('Notes'),
       tags: arr('Tags'),
     },

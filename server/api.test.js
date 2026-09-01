@@ -847,6 +847,39 @@ test('MRP plans a made intermediate as a batch and pulls its ingredients as depe
   assert.ok(rawFromBlend <= blendWeek);
 });
 
+test('a batch carries its standard cost from planning and reports variance against actual', async () => {
+  await post('/api/auth/logout');
+  await post('/api/auth/login', { email: 'jbradfield@enovascience.com', password: 'enova2026' });
+
+  // plan a batch from a formula: the standard is frozen on the work order
+  const formula = db.findOne('formulas', { code: 'F-4004' });
+  const wo = await post('/api/production/from-formula', { formulaId: formula.id, plannedQty: 5000 });
+  assert.ok(wo.standardUnitCost > 0, 'standard material cost per unit is snapshotted at planning');
+  assert.ok(Math.abs(wo.standardMaterialCost - wo.standardUnitCost * 5000) < 0.01);
+
+  // issue one material line from a released lot so there is an actual cost, then record output
+  const line = wo.materials.findIndex((m) => m.itemId && db.find('lots', { itemId: m.itemId, status: 'released' }).some((l) => l.qtyOnHand > 0));
+  assert.ok(line >= 0, 'a material with released stock exists');
+  const lot = db.find('lots', { itemId: wo.materials[line].itemId, status: 'released' }).find((l) => l.qtyOnHand > 0);
+  const issueQty = Math.min(wo.materials[line].plannedQty, lot.qtyOnHand);
+  await post(`/api/production/${wo.id}/issue`, { index: line, lotId: lot.id, qty: issueQty });
+  const out = await post(`/api/production/${wo.id}/output`, { actualQty: 4800 });
+  assert.ok(out.actualUnitCost >= 0);
+  assert.ok(Math.abs(out.actualMaterialCost - issueQty * lot.unitCost) < 0.01, 'actual cost is the issued quantity at the lot cost');
+
+  // the variance report sees it and its arithmetic is right
+  const overview = await get('/api/reports/overview');
+  const row = overview.variance.rows.find((r) => r.id === wo.id);
+  assert.ok(row, 'the batch appears in the variance report');
+  assert.ok(Math.abs(row.unitVariance - (out.actualUnitCost - wo.standardUnitCost)) < 0.0001);
+  assert.equal(row.yieldPct, 96);
+  assert.equal(row.favorable, row.totalVariance <= 0);
+
+  const csv = await fetch(`${base}/api/reports/export/cost-variance`, { headers: { Cookie: jar() } });
+  assert.equal(csv.status, 200);
+  assert.match((await csv.text()).split('\n')[0], /Standard \$\/unit,Actual \$\/unit/);
+});
+
 async function postCsv(url, csv, filename = 'data.csv') {
   const form = new FormData();
   form.append('file', new Blob([csv], { type: 'text/csv' }), filename);

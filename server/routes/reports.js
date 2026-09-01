@@ -82,7 +82,48 @@ function delivery(db) {
   return { total: orders.length, onTime, late: orders.length - onTime, rate: orders.length ? Number(((onTime / orders.length) * 100).toFixed(1)) : 0, rows };
 }
 
+/**
+ * Standard vs actual: for every batch that has recorded output, the material
+ * cost per unit it was planned at against what the issued lots actually cost,
+ * plus yield. Only batches carrying both numbers qualify — a batch with output
+ * but nothing issued has no actual cost to judge yet.
+ */
+function variance(db) {
+  const r = (n, dp) => Number(n.toFixed(dp));
+  const rows = db.find('workOrders')
+    .filter((wo) => wo.actualQty > 0 && (wo.actualMaterialCost || 0) > 0 && (wo.actualUnitCost || 0) > 0 && (wo.standardUnitCost || 0) > 0)
+    .map((wo) => {
+      const std = wo.standardUnitCost;
+      const act = wo.actualUnitCost;
+      const unitVariance = r(act - std, 4);
+      const totalVariance = r((wo.actualMaterialCost || act * wo.actualQty) - std * wo.actualQty, 2);
+      return {
+        id: wo.id, woNumber: wo.woNumber, batchNumber: wo.batchNumber, productName: wo.productName, stage: wo.stage,
+        plannedQty: wo.plannedQty, actualQty: wo.actualQty,
+        yieldPct: wo.plannedQty ? r((wo.actualQty / wo.plannedQty) * 100, 1) : null,
+        standardUnitCost: std, actualUnitCost: act,
+        unitVariance, unitVariancePct: r((unitVariance / std) * 100, 1),
+        totalVariance, favorable: totalVariance <= 0,
+      };
+    })
+    .sort((a, b) => Math.abs(b.totalVariance) - Math.abs(a.totalVariance));
+  return {
+    rows,
+    batches: rows.length,
+    totalVariance: r(rows.reduce((s, x) => s + x.totalVariance, 0), 2),
+    avgYield: rows.length ? r(rows.reduce((s, x) => s + (x.yieldPct ?? 0), 0) / rows.length, 1) : null,
+  };
+}
+
 const CSV = {
+  'cost-variance': (db) => toCsv(
+    ['Work order', 'Batch', 'Product', 'Planned qty', 'Actual qty', 'Yield %', 'Standard $/unit', 'Actual $/unit', 'Variance $/unit', 'Variance %', 'Total variance $'],
+    variance(db).rows.map((x) => ({
+      'Work order': x.woNumber, Batch: x.batchNumber, Product: x.productName, 'Planned qty': x.plannedQty, 'Actual qty': x.actualQty,
+      'Yield %': x.yieldPct ?? '', 'Standard $/unit': x.standardUnitCost, 'Actual $/unit': x.actualUnitCost,
+      'Variance $/unit': x.unitVariance, 'Variance %': x.unitVariancePct, 'Total variance $': x.totalVariance,
+    })),
+  ),
   'inventory-valuation': (db) => {
     const { rows } = inventoryValuation(db);
     return toCsv(['Item code', 'Item', 'Quantity', 'UOM', 'Value (USD)'],
@@ -111,6 +152,7 @@ export function reportsRouter(db) {
       inventory: inventoryValuation(db),
       pipeline: pipeline(db),
       delivery: delivery(db),
+      variance: variance(db),
     });
   }));
 

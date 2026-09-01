@@ -14,7 +14,8 @@ import { WORK_ORDER_STAGES, can, enumValues } from '../../shared/domain.js';
 import { actorContext, requirePermission, HttpError } from '../lib/auth.js';
 import { route, num, requireFields } from '../lib/http.js';
 import { logActivity, notify } from '../lib/events.js';
-import { explodeFormula } from '../calc/bom.js';
+import { explodeFormula, standardUnitCost } from '../calc/bom.js';
+import { buildFormula } from '../calc/quoteEngine.js';
 
 const STAGE_ORDER = enumValues(WORK_ORDER_STAGES);
 
@@ -505,6 +506,11 @@ export function productionRouter(db) {
         line: req.body.line ?? '',
         plannedQty,
         uom: 'ea',
+        // Freeze the standard at planning time; variance is judged against this.
+        ...(() => {
+          const std = standardUnitCost(db, formula, buildFormula);
+          return { standardUnitCost: std, standardMaterialCost: Number((std * plannedQty).toFixed(2)) };
+        })(),
         plannedStart: req.body.plannedStart ?? null,
         plannedEnd: req.body.plannedEnd ?? null,
         supervisorId: req.body.supervisorId ?? req.user.id,
