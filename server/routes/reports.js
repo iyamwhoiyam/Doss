@@ -97,6 +97,10 @@ function variance(db) {
       const act = wo.actualUnitCost;
       const unitVariance = r(act - std, 4);
       const totalVariance = r((wo.actualMaterialCost || act * wo.actualQty) - std * wo.actualQty, 2);
+      // Labor only counts once the floor has clocked something against the batch.
+      const stdLabor = wo.standardLaborCost || 0;
+      const actLabor = wo.actualLaborCost || 0;
+      const laborVariance = actLabor > 0 ? r(actLabor - stdLabor, 2) : null;
       return {
         id: wo.id, woNumber: wo.woNumber, batchNumber: wo.batchNumber, productName: wo.productName, stage: wo.stage,
         plannedQty: wo.plannedQty, actualQty: wo.actualQty,
@@ -104,6 +108,8 @@ function variance(db) {
         standardUnitCost: std, actualUnitCost: act,
         unitVariance, unitVariancePct: r((unitVariance / std) * 100, 1),
         totalVariance, favorable: totalVariance <= 0,
+        standardLaborCost: stdLabor, actualLaborCost: actLabor, laborVariance,
+        standardLaborMin: wo.standardLaborMin || 0, actualLaborMin: wo.actualLaborMin || 0,
       };
     })
     .sort((a, b) => Math.abs(b.totalVariance) - Math.abs(a.totalVariance));
@@ -111,17 +117,20 @@ function variance(db) {
     rows,
     batches: rows.length,
     totalVariance: r(rows.reduce((s, x) => s + x.totalVariance, 0), 2),
+    laborVariance: r(rows.reduce((s, x) => s + (x.laborVariance ?? 0), 0), 2),
     avgYield: rows.length ? r(rows.reduce((s, x) => s + (x.yieldPct ?? 0), 0) / rows.length, 1) : null,
   };
 }
 
 const CSV = {
   'cost-variance': (db) => toCsv(
-    ['Work order', 'Batch', 'Product', 'Planned qty', 'Actual qty', 'Yield %', 'Standard $/unit', 'Actual $/unit', 'Variance $/unit', 'Variance %', 'Total variance $'],
+    ['Work order', 'Batch', 'Product', 'Planned qty', 'Actual qty', 'Yield %', 'Standard $/unit', 'Actual $/unit', 'Variance $/unit', 'Variance %', 'Total variance $', 'Standard labor min', 'Actual labor min', 'Standard labor $', 'Actual labor $', 'Labor variance $'],
     variance(db).rows.map((x) => ({
       'Work order': x.woNumber, Batch: x.batchNumber, Product: x.productName, 'Planned qty': x.plannedQty, 'Actual qty': x.actualQty,
       'Yield %': x.yieldPct ?? '', 'Standard $/unit': x.standardUnitCost, 'Actual $/unit': x.actualUnitCost,
       'Variance $/unit': x.unitVariance, 'Variance %': x.unitVariancePct, 'Total variance $': x.totalVariance,
+      'Standard labor min': x.standardLaborMin, 'Actual labor min': x.actualLaborMin,
+      'Standard labor $': x.standardLaborCost, 'Actual labor $': x.actualLaborCost, 'Labor variance $': x.laborVariance ?? '',
     })),
   ),
   'inventory-valuation': (db) => {

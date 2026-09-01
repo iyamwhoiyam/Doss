@@ -16,6 +16,7 @@ import { route, num, requireFields } from '../lib/http.js';
 import { logActivity, notify } from '../lib/events.js';
 import { explodeFormula, standardUnitCost } from '../calc/bom.js';
 import { buildFormula } from '../calc/quoteEngine.js';
+import { addWorkingDays, ensureStandardRoutings, laborRollup, pickRouting, plannedDurationDays, routingSteps, settleStep } from '../calc/routing.js';
 
 const STAGE_ORDER = enumValues(WORK_ORDER_STAGES);
 
@@ -128,7 +129,13 @@ export function productionRouter(db) {
     if (req.body?.plannedEnd !== undefined) patch.plannedEnd = req.body.plannedEnd;
 
     const start = patch.plannedStart !== undefined ? patch.plannedStart : wo.plannedStart;
-    const finish = patch.plannedEnd !== undefined ? patch.plannedEnd : wo.plannedEnd;
+    let finish = patch.plannedEnd !== undefined ? patch.plannedEnd : wo.plannedEnd;
+    // Dropped onto a day with no end: the routing says how long the run takes.
+    if (start && !finish && wo.steps?.some((st) => st.plannedMin)) {
+      const routing = wo.routingId ? db.get('routings', wo.routingId) : null;
+      finish = addWorkingDays(start, plannedDurationDays(wo.steps, routing?.hoursPerShift));
+      patch.plannedEnd = finish;
+    }
     if (start && finish && new Date(finish) < new Date(start)) {
       throw new HttpError(422, 'Planned end cannot fall before planned start');
     }
@@ -244,6 +251,58 @@ export function productionRouter(db) {
       notes: req.body?.notes ?? s.notes,
     } : s));
     res.json(db.update('workOrders', wo.id, { steps }, actorContext(req)));
+  }));
+
+  /**
+   * Labor capture on a batch step. Either clock on/off (one open entry per
+   * person per step) or log minutes after the fact. Actual labor cost follows
+   * the step's crew and rate, and the work order's rollup is kept current so
+   * costing never has to walk the steps.
+   */
+  router.post('/:id/steps/:index/time', requirePermission('production.write'), route((req, res) => {
+    const wo = db.getOrFail('workOrders', req.params.id);
+    if (wo.stage === 'complete' || wo.stage === 'cancelled') throw new HttpError(409, 'This batch is closed; time can no longer be logged against it');
+    const index = num(req.params.index, -1);
+    const step = wo.steps?.[index];
+    if (!step) throw new HttpError(404, 'That batch step does not exist');
+
+    const { action, minutes, note } = req.body ?? {};
+    const now = new Date().toISOString();
+    const entries = [...(step.timeEntries ?? [])];
+    const openIdx = entries.findIndex((e) => e.userId === req.user.id && !e.endedAt);
+
+    if (action === 'start') {
+      if (openIdx >= 0) throw new HttpError(409, 'You are already clocked on to this step');
+      entries.push({ userId: req.user.id, startedAt: now, endedAt: null, minutes: 0, note: note ?? '' });
+    } else if (action === 'stop') {
+      if (openIdx < 0) throw new HttpError(409, 'You are not clocked on to this step');
+      const open = entries[openIdx];
+      const elapsed = Math.max(0, (Date.parse(now) - Date.parse(open.startedAt)) / 60_000);
+      entries[openIdx] = { ...open, endedAt: now, minutes: Number(elapsed.toFixed(1)), note: note ?? open.note };
+    } else {
+      const logged = num(minutes, 0);
+      if (logged <= 0) throw new HttpError(422, 'Log a number of minutes, or clock on and off');
+      entries.push({ userId: req.user.id, startedAt: now, endedAt: now, minutes: Number(logged.toFixed(1)), note: note ?? '', manual: true });
+    }
+
+    const steps = wo.steps.map((st, i) => (i === index ? settleStep({ ...st, timeEntries: entries }) : st));
+    const patch = { steps, ...laborRollup(steps) };
+    // First time on the floor marks the run as started.
+    if (!wo.actualStart && action !== 'stop') patch.actualStart = now;
+    if (!wo.operatorIds?.includes(req.user.id)) patch.operatorIds = [...(wo.operatorIds ?? []), req.user.id];
+    res.json(db.update('workOrders', wo.id, patch, actorContext(req)));
+  }));
+
+  /** Add Enova's standard routings (one per format) wherever they are missing. */
+  router.post('/routings/defaults', requirePermission('production.write'), route((req, res) => {
+    const added = ensureStandardRoutings(db, actorContext(req));
+    if (added.length) {
+      logActivity(db, req, {
+        type: 'routing', title: `${added.length} standard routing${added.length === 1 ? '' : 's'} added`,
+        detail: added.map((r) => r.code).join(', '), tone: 'accent', refType: 'routing', refId: added[0].id, link: '/routings',
+      });
+    }
+    res.json({ added: added.length, routings: db.find('routings') });
   }));
 
   // -- QC checks --
@@ -489,10 +548,19 @@ export function productionRouter(db) {
         issuedBy: '',
       }));
 
-      const steps = (req.body.steps ?? [
-        'Sanitation verification', 'Dispensing / weighing', 'Blending', 'Blend uniformity sample',
-        'Processing', 'In-process weight check', 'Bulk sampling', 'Packaging', 'Labelling', 'Case packing',
-      ]).map((name) => ({ name, done: false, doneBy: '', doneAt: null, requiresSignature: /sampl|verif|check/i.test(name), notes: '' }));
+      // Batch steps come from the routing (the formula's own, else the format's
+      // default), which also fixes the standard labor and how long the run takes.
+      const routing = req.body.steps ? null : pickRouting(tx, formula);
+      const steps = routing
+        ? routingSteps(routing, plannedQty)
+        : (req.body.steps ?? [
+          'Sanitation verification', 'Dispensing / weighing', 'Blending', 'Blend uniformity sample',
+          'Processing', 'In-process weight check', 'Bulk sampling', 'Packaging', 'Labelling', 'Case packing',
+        ]).map((name) => ({ name, done: false, doneBy: '', doneAt: null, requiresSignature: /sampl|verif|check/i.test(name), notes: '', timeEntries: [], actualMin: 0, actualLaborCost: 0 }));
+      const plannedStart = req.body.plannedStart ?? null;
+      const plannedEnd = req.body.plannedEnd
+        ?? (plannedStart && routing ? addWorkingDays(plannedStart, plannedDurationDays(steps, routing.hoursPerShift)) : null);
+      const line = req.body.line ?? routing?.operations?.find((op) => op.workCenter)?.workCenter ?? '';
 
       return tx.insert('workOrders', {
         woNumber: tx.nextSequence('WO', 'WO-{yyyy}-{n:4}'),
@@ -503,16 +571,18 @@ export function productionRouter(db) {
         formulaId: formula.id,
         customerId: formula.customerId,
         salesOrderId: req.body.salesOrderId ?? '',
-        line: req.body.line ?? '',
+        line,
         plannedQty,
         uom: 'ea',
-        // Freeze the standard at planning time; variance is judged against this.
+        // Freeze the standards at planning time; variance is judged against these.
         ...(() => {
           const std = standardUnitCost(db, formula, buildFormula);
           return { standardUnitCost: std, standardMaterialCost: Number((std * plannedQty).toFixed(2)) };
         })(),
-        plannedStart: req.body.plannedStart ?? null,
-        plannedEnd: req.body.plannedEnd ?? null,
+        routingId: routing?.id ?? '',
+        ...laborRollup(steps),
+        plannedStart,
+        plannedEnd,
         supervisorId: req.body.supervisorId ?? req.user.id,
         materials,
         steps,

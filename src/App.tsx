@@ -13,6 +13,7 @@ const Activity = lazy(() => import('./pages/Activity').then((m) => ({ default: m
 const Production = lazy(() => import('./pages/Production').then((m) => ({ default: m.Production })));
 const Schedule = lazy(() => import('./pages/Schedule').then((m) => ({ default: m.Schedule })));
 const Planning = lazy(() => import('./pages/Planning').then((m) => ({ default: m.Planning })));
+const Routings = lazy(() => import('./pages/Routings').then((m) => ({ default: m.Routings })));
 const WorkOrderDetail = lazy(() => import('./pages/WorkOrderDetail').then((m) => ({ default: m.WorkOrderDetail })));
 const Inventory = lazy(() => import('./pages/Inventory').then((m) => ({ default: m.Inventory })));
 const ItemDetail = lazy(() => import('./pages/ItemDetail').then((m) => ({ default: m.ItemDetail })));
@@ -88,6 +89,7 @@ function AuthedApp() {
           <Route path="/production" element={<Production />} />
           <Route path="/schedule" element={<Schedule />} />
           <Route path="/planning" element={<Planning />} />
+          <Route path="/routings" element={<Routings />} />
           <Route path="/production/:id" element={<WorkOrderDetail />} />
 
           <Route path="/inventory" element={<Inventory />} />

@@ -880,6 +880,75 @@ test('a batch carries its standard cost from planning and reports variance again
   assert.match((await csv.text()).split('\n')[0], /Standard \$\/unit,Actual \$\/unit/);
 });
 
+test('a routing drives batch steps, fixes standard labor, sizes the run, and captures actual time', async () => {
+  await post('/api/auth/logout');
+  await post('/api/auth/login', { email: 'jbradfield@enovascience.com', password: 'enova2026' });
+
+  // the standard set is seeded and adding it again is a no-op
+  const seeded = db.find('routings');
+  assert.ok(seeded.length >= 5, 'standard routings are seeded');
+  const again = await post('/api/production/routings/defaults');
+  assert.equal(again.added, 0);
+
+  // a formula-specific routing wins over the format default
+  const routing = await post('/api/data/routings', {
+    code: 'RT-TEST', name: 'Test capsule routing', format: 'capsule', hoursPerShift: 8,
+    operations: [
+      { seq: 1, name: 'Dispensing', workCenter: 'Blending', setupMin: 30, runRatePerHour: 0, crew: 2, laborRate: 30, requiresSignature: false },
+      { seq: 2, name: 'Encapsulation', workCenter: 'Encapsulation 1', setupMin: 60, runRatePerHour: 60000, crew: 2, laborRate: 30, requiresSignature: false },
+      { seq: 3, name: 'Bulk sampling', workCenter: 'Encapsulation 1', setupMin: 15, runRatePerHour: 0, crew: 1, laborRate: 32, requiresSignature: true },
+    ],
+  });
+  const formula = db.findOne('formulas', { code: 'F-4001' });
+  await patch(`/api/data/formulas/${formula.id}`, { routingId: routing.id });
+
+  const monday = new Date('2026-09-07T08:00:00Z').toISOString();
+  const wo = await post('/api/production/from-formula', { formulaId: formula.id, plannedQty: 120000, plannedStart: monday });
+  assert.equal(wo.routingId, routing.id);
+  assert.equal(wo.line, 'Blending', 'the first work center becomes the line');
+  assert.deepEqual(wo.steps.map((s) => s.name), ['Dispensing', 'Encapsulation', 'Bulk sampling']);
+  assert.equal(wo.steps[1].plannedMin, 180, '60 setup + 120000/60000 h run');
+  assert.equal(wo.steps[1].standardLaborCost, 180, '3 h × 2 crew × $30');
+  assert.equal(wo.standardLaborMin, 225);
+  assert.equal(wo.standardLaborCost, 30 + 180 + 8);
+  // 225 min on an 8 h shift is one working day, so the run ends the day it starts
+  assert.equal(wo.plannedEnd.slice(0, 10), '2026-09-07');
+
+  // clock on, clock off, and log missed minutes
+  const on = await post(`/api/production/${wo.id}/steps/1/time`, { action: 'start' });
+  assert.ok(on.steps[1].timeEntries.some((e) => !e.endedAt), 'an open entry');
+  assert.ok(on.actualStart, 'first clock-on starts the run');
+  const twice = await api('POST', `/api/production/${wo.id}/steps/1/time`, { action: 'start' }, { raw: true });
+  assert.equal(twice.status, 409);
+  const off = await post(`/api/production/${wo.id}/steps/1/time`, { action: 'stop' });
+  assert.ok(off.steps[1].timeEntries.every((e) => e.endedAt), 'entry closed');
+  const logged = await post(`/api/production/${wo.id}/steps/1/time`, { minutes: 200, note: 'changeover overran' });
+  assert.equal(logged.steps[1].actualMin, 200);
+  assert.equal(logged.steps[1].actualLaborCost, 200, '200 min × 2 crew × $30/h');
+  assert.equal(logged.actualLaborMin, 200);
+  assert.equal(logged.actualLaborCost, 200);
+
+  // the variance report carries the labor side once output exists
+  const line = wo.materials.findIndex((m) => m.itemId && db.find('lots', { itemId: m.itemId, status: 'released' }).some((l) => l.qtyOnHand > 0));
+  const lot = db.find('lots', { itemId: wo.materials[line].itemId, status: 'released' }).find((l) => l.qtyOnHand > 0);
+  await post(`/api/production/${wo.id}/issue`, { index: line, lotId: lot.id, qty: Math.min(wo.materials[line].plannedQty, lot.qtyOnHand) });
+  await post(`/api/production/${wo.id}/output`, { actualQty: 118000 });
+  const overview = await get('/api/reports/overview');
+  const row = overview.variance.rows.find((r) => r.id === wo.id);
+  assert.ok(row, 'batch appears in the variance report');
+  assert.equal(row.standardLaborCost, 218);
+  assert.equal(row.actualLaborCost, 200);
+  assert.equal(row.laborVariance, -18);
+  const csv = await fetch(`${base}/api/reports/export/cost-variance`, { headers: { Cookie: jar() } }).then((r) => r.text());
+  assert.match(csv.split('\n')[0], /Standard labor \$,Actual labor \$,Labor variance \$/);
+
+  // a closed batch refuses more time
+  for (let i = 0; i < wo.steps.length; i++) await post(`/api/production/${wo.id}/steps/${i}`, { done: true });
+  await post(`/api/production/${wo.id}/move`, { stage: 'complete' });
+  const closed = await api('POST', `/api/production/${wo.id}/steps/1/time`, { minutes: 5 }, { raw: true });
+  assert.equal(closed.status, 409);
+});
+
 async function postCsv(url, csv, filename = 'data.csv') {
   const form = new FormData();
   form.append('file', new Blob([csv], { type: 'text/csv' }), filename);

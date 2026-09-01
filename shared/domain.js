@@ -393,6 +393,7 @@ export const NAV = [
     { to: '/production', label: 'Production', icon: 'factory' },
     { to: '/schedule', label: 'Schedule', icon: 'calendar' },
     { to: '/planning', label: 'Planning', icon: 'target', perm: 'cost.view' },
+    { to: '/routings', label: 'Routings', icon: 'sliders' },
     { to: '/inventory', label: 'Inventory', icon: 'boxes' },
     { to: '/purchasing', label: 'Vendors & POs', icon: 'truck' },
   ] },

@@ -13,8 +13,8 @@ interface Overview {
   pipeline: { counts: Record<string, number>; won: number; lost: number; winRate: number; openValue: number; open: number };
   delivery: { total: number; onTime: number; late: number; rate: number; rows: { orderNumber: string; promised: string; shipped: string; onTime: boolean }[] };
   variance: {
-    batches: number; totalVariance: number; avgYield: number | null;
-    rows: { id: string; woNumber: string; productName: string; plannedQty: number; actualQty: number; yieldPct: number | null; standardUnitCost: number; actualUnitCost: number; unitVariance: number; unitVariancePct: number; totalVariance: number; favorable: boolean }[];
+    batches: number; totalVariance: number; laborVariance: number; avgYield: number | null;
+    rows: { id: string; woNumber: string; productName: string; plannedQty: number; actualQty: number; yieldPct: number | null; standardUnitCost: number; actualUnitCost: number; unitVariance: number; unitVariancePct: number; totalVariance: number; favorable: boolean; standardLaborCost: number; actualLaborCost: number; laborVariance: number | null }[];
   };
 }
 
@@ -82,7 +82,7 @@ export function Reports() {
         <CardHead
           title="Cost & yield variance"
           subtitle={data.variance.batches
-            ? `${data.variance.batches} costed batch${data.variance.batches === 1 ? '' : 'es'} · net ${money(Math.abs(data.variance.totalVariance), 0)} ${data.variance.totalVariance <= 0 ? 'favorable' : 'unfavorable'} · average yield ${data.variance.avgYield}%`
+            ? `${data.variance.batches} costed batch${data.variance.batches === 1 ? '' : 'es'} · material ${money(Math.abs(data.variance.totalVariance), 0)} ${data.variance.totalVariance <= 0 ? 'favorable' : 'unfavorable'} · labor ${money(Math.abs(data.variance.laborVariance), 0)} ${data.variance.laborVariance <= 0 ? 'favorable' : 'unfavorable'} · average yield ${data.variance.avgYield}%`
             : 'Standard material cost per unit, frozen when a batch is planned, against what the issued lots actually cost'}
           icon="scale"
           actions={<ExportLink report="cost-variance" />}
@@ -96,10 +96,15 @@ export function Reports() {
               { key: 'yield', header: 'Yield', numeric: true, sortValue: (r) => r.yieldPct ?? 0, render: (r) => (r.yieldPct != null ? `${r.yieldPct}%` : '—') },
               { key: 'std', header: 'Std $/unit', numeric: true, sortValue: (r) => r.standardUnitCost, render: (r) => money(r.standardUnitCost, 4) },
               { key: 'act', header: 'Actual $/unit', numeric: true, sortValue: (r) => r.actualUnitCost, render: (r) => money(r.actualUnitCost, 4) },
-              { key: 'var', header: 'Variance', numeric: true, sortValue: (r) => r.totalVariance, render: (r) => (
+              { key: 'var', header: 'Material variance', numeric: true, sortValue: (r) => r.totalVariance, render: (r) => (
                 <span className="tone-text" data-tone={r.favorable ? 'success' : 'danger'}>
                   {r.favorable ? '−' : '+'}{money(Math.abs(r.totalVariance), 0)} ({r.unitVariancePct > 0 ? '+' : ''}{r.unitVariancePct}%)
                 </span>
+              ) },
+              { key: 'labor', header: 'Labor std → actual', numeric: true, sortValue: (r) => r.laborVariance ?? 0, render: (r) => (
+                r.laborVariance == null
+                  ? <span className="cell-sub">{money(r.standardLaborCost, 0)} → —</span>
+                  : <span className="tone-text" data-tone={r.laborVariance <= 0 ? 'success' : 'danger'}>{money(r.standardLaborCost, 0)} → {money(r.actualLaborCost, 0)}</span>
               ) },
             ] as Column<Overview['variance']['rows'][number]>[]}
             rows={data.variance.rows.slice(0, 25)}

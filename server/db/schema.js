@@ -406,6 +406,9 @@ export const schema = {
       totalFormatWeightMg: num('Total format weight (mg)', { default: 600 }),
       capsuleShellSize: str('Capsule shell size'),
       overagePct: num('Overage %', { default: 5 }),
+      // How the batch runs: a routing of operations with setup and run rates.
+      // Empty means "the default routing for this format".
+      routingId: str('Routing'),
       actives: arr('Active ingredients'),
       excipients: arr('Excipients'),
       // The stockable item this formula makes — a finished good, or an
@@ -456,6 +459,24 @@ export const schema = {
   },
 
   // ── production ───────────────────────────────────────────────────────────
+  routings: {
+    label: 'Routings',
+    fields: {
+      code: str('Routing code', { required: true }),
+      name: str('Routing name', { required: true }),
+      format: { type: 'string', label: 'Format', enum: enumValues(FORMULA_FORMATS), default: 'capsule' },
+      isDefault: bool('Default for its format'),
+      hoursPerShift: num('Hours per shift', { default: 8 }),
+      // [{ seq, name, workCenter, setupMin, runRatePerHour, runMin, crew, laborRate, requiresSignature }]
+      operations: arr('Operations'),
+      notes: str('Notes'),
+      tags: arr('Tags'),
+    },
+    indexes: ['format', 'isDefault'],
+    unique: ['code'],
+    search: ['name', 'code', 'notes'],
+  },
+
   workOrders: {
     label: 'Work orders',
     fields: {
@@ -496,6 +517,13 @@ export const schema = {
       // against what we expected then — not against today's price list.
       standardUnitCost: num('Standard material cost per unit'),
       standardMaterialCost: num('Standard material cost'),
+      // Labor: standard from the routing at planning, actual from the time the
+      // floor clocks against each step.
+      routingId: str('Routing'),
+      standardLaborMin: num('Standard labor (min)'),
+      standardLaborCost: num('Standard labor cost'),
+      actualLaborMin: num('Actual labor (min)'),
+      actualLaborCost: num('Actual labor cost'),
       notes: str('Notes'),
       tags: arr('Tags'),
     },
@@ -725,6 +753,7 @@ export const COLLECTION_PERMISSIONS = {
   projects: { read: null, write: 'projects.write' },
   formulas: { read: null, write: 'formulas.write' },
   quotes: { read: 'cost.view', write: 'quotes.write' },
+  routings: { read: null, write: 'production.write' },
   workOrders: { read: null, write: 'production.write' },
   labelReviews: { read: null, write: 'labels.write' },
   samples: { read: null, write: 'samples.write' },

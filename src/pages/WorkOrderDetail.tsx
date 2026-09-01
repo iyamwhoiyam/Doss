@@ -32,7 +32,7 @@ export function WorkOrderDetail() {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
   const { error, success, confirm } = useUi();
-  const { can } = useSession();
+  const { can, user } = useSession();
   const customers = useCustomers();
   const users = useUsers();
   const formulas = useFormulas();
@@ -51,6 +51,9 @@ export function WorkOrderDetail() {
   const [tab, setTab] = useState('batch');
   const [issueRow, setIssueRow] = useState<number | null>(null);
   const [deviationOpen, setDeviationOpen] = useState(false);
+  const [logStep, setLogStep] = useState<number | null>(null);
+  const [logMin, setLogMin] = useState(30);
+  const [logNote, setLogNote] = useState('');
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ['record', 'workOrders', id] });
@@ -93,6 +96,25 @@ export function WorkOrderDetail() {
       refresh();
     } catch (err) { error(err); }
   };
+
+  const clock = async (index: number, action: 'start' | 'stop') => {
+    try {
+      await api.post(`/production/${wo.id}/steps/${index}/time`, { action });
+      refresh();
+      success(action === 'start' ? `Clocked on to ${wo.steps[index].name}` : `Clocked off ${wo.steps[index].name}`);
+    } catch (err) { error(err); }
+  };
+  const logMinutes = async () => {
+    if (logStep == null) return;
+    try {
+      await api.post(`/production/${wo.id}/steps/${logStep}/time`, { minutes: logMin, note: logNote });
+      refresh();
+      success(`${logMin} min logged against ${wo.steps[logStep].name}`);
+      setLogStep(null); setLogMin(30); setLogNote('');
+    } catch (err) { error(err); }
+  };
+  const minutesLabel = (m: number) => (m >= 90 ? `${(m / 60).toFixed(1)} h` : `${Math.round(m)} min`);
+  const laborOpen = wo.stage !== 'complete' && wo.stage !== 'cancelled';
 
   const stageIndex = WORK_ORDER_STAGES.findIndex((s) => s.value === wo.stage);
   const nextStage = WORK_ORDER_STAGES[stageIndex + 1];
@@ -222,11 +244,36 @@ export function WorkOrderDetail() {
                         <div className="row-tight">
                           <span className="step-name">{step.name}</span>
                           {step.requiresSignature && <Badge tone="warning">signature</Badge>}
+                          {step.workCenter && <span className="cell-sub">· {step.workCenter}</span>}
                         </div>
                         <div className="step-meta">
                           {step.done ? `${users.name(step.doneBy)} · ${dateTime(step.doneAt)}` : 'Not signed'}
+                          {(step.plannedMin || step.actualMin) ? (
+                            <span>
+                              {' · '}
+                              {step.plannedMin ? `planned ${minutesLabel(step.plannedMin)}` : ''}
+                              {step.actualMin ? (
+                                <span className="tone-text" data-tone={step.plannedMin && step.actualMin > step.plannedMin * 1.1 ? 'danger' : 'success'}>
+                                  {step.plannedMin ? ' · ' : ''}actual {minutesLabel(step.actualMin)}
+                                </span>
+                              ) : ''}
+                              {(step.timeEntries ?? []).some((e) => !e.endedAt) && (
+                                <span className="tone-text" data-tone="progress"> · {(step.timeEntries ?? []).filter((e) => !e.endedAt).map((e) => users.name(e.userId)).join(', ')} on the clock</span>
+                              )}
+                            </span>
+                          ) : null}
                         </div>
                       </div>
+                      {writable && laborOpen && (
+                        <div className="row-tight" style={{ flexShrink: 0 }}>
+                          {(step.timeEntries ?? []).some((e) => e.userId === user?.id && !e.endedAt) ? (
+                            <button type="button" className="btn btn-sm" onClick={() => clock(index, 'stop')}><Icon name="pause" size={12} /> Clock off</button>
+                          ) : (
+                            <button type="button" className="btn btn-sm btn-ghost" onClick={() => clock(index, 'start')} title="Start the clock on this step"><Icon name="play" size={12} /> Clock on</button>
+                          )}
+                          <button type="button" className="btn btn-sm btn-ghost" onClick={() => setLogStep(index)} title="Log minutes after the fact"><Icon name="clock" size={12} /></button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -326,7 +373,7 @@ export function WorkOrderDetail() {
           {(() => {
             // Standard (frozen at planning) vs actual (from the lots issued, once output is recorded).
             const std = wo.standardUnitCost ?? 0;
-            if (std <= 0) return null;
+            if (std <= 0 && !(wo.standardLaborCost ?? 0)) return null;
             const act = wo.actualUnitCost ?? 0;
             const costed = wo.actualQty > 0 && act > 0;
             const v = act - std;
@@ -335,6 +382,17 @@ export function WorkOrderDetail() {
                 <div className="card-body row" style={{ gap: 'var(--s-6)', flexWrap: 'wrap' }}>
                   <div><div className="cell-sub">Standard material cost / unit</div><div className="cell-primary">${std.toFixed(4)}</div></div>
                   <div><div className="cell-sub">Standard material total</div><div className="cell-primary">${(wo.standardMaterialCost ?? std * wo.plannedQty).toFixed(2)}</div></div>
+                  {(wo.standardLaborCost ?? 0) > 0 && (
+                    <div>
+                      <div className="cell-sub">Labor std → actual</div>
+                      <div className="cell-primary">
+                        ${(wo.standardLaborCost ?? 0).toFixed(0)} ({minutesLabel(wo.standardLaborMin ?? 0)}) →{' '}
+                        {(wo.actualLaborMin ?? 0) > 0
+                          ? <span className="tone-text" data-tone={(wo.actualLaborCost ?? 0) <= (wo.standardLaborCost ?? 0) ? 'success' : 'danger'}>${(wo.actualLaborCost ?? 0).toFixed(0)} ({minutesLabel(wo.actualLaborMin ?? 0)})</span>
+                          : <span className="cell-sub">nothing clocked yet</span>}
+                      </div>
+                    </div>
+                  )}
                   {costed ? (
                     <>
                       <div><div className="cell-sub">Actual material cost / unit</div><div className="cell-primary">${act.toFixed(4)}</div></div>
@@ -354,6 +412,24 @@ export function WorkOrderDetail() {
             );
           })()}
 
+      <Modal
+        open={logStep != null}
+        onClose={() => setLogStep(null)}
+        title={logStep != null ? `Log time · ${wo.steps[logStep]?.name}` : 'Log time'}
+        footer={(
+          <>
+            <button type="button" className="btn" onClick={() => setLogStep(null)}>Cancel</button>
+            <button type="button" className="btn btn-primary" onClick={logMinutes} disabled={logMin <= 0}><Icon name="clock" size={14} /> Log {logMin} min</button>
+          </>
+        )}
+      >
+        <div className="col">
+          <Field label="Minutes worked" hint="Use this when the clock was missed — it posts against you at this step's crew and rate.">
+            <NumberInput value={logMin} onChange={(v) => setLogMin(v)} min={1} />
+          </Field>
+          <Field label="Note"><TextArea value={logNote} onChange={setLogNote} rows={2} placeholder="Changeover ran long, second operator joined…" /></Field>
+        </div>
+      </Modal>
           {writable && wo.stage !== 'planned' && (
             <Section title="Record output" icon="scale" subtitle="Posts finished goods and computes the yield">
               <RecordOutput workOrderId={wo.id} plannedQty={wo.plannedQty} actualQty={wo.actualQty} onDone={refresh} />

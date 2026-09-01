@@ -21,7 +21,7 @@ import { schema } from './schema.js';
 
 export const WIPE_COLLECTIONS = [
   'customers', 'vendors', 'items', 'locations', 'lots', 'inventoryTxns', 'cycleCounts',
-  'projects', 'formulas', 'quotes', 'workOrders', 'labelReviews', 'samples', 'rfqs', 'purchaseOrders',
+  'projects', 'formulas', 'routings', 'quotes', 'workOrders', 'labelReviews', 'samples', 'rfqs', 'purchaseOrders',
   'salesOrders', 'shipments', 'documents', 'tasks', 'comments', 'activity',
   'notifications', 'savedViews',
 ];

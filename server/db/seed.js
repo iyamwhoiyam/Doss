@@ -21,6 +21,7 @@ import { hashPassword } from '../lib/auth.js';
 import { buildQuote, defaultTiers, suggestLabour } from '../calc/quoteEngine.js';
 import { reviewLabel } from '../calc/labelEngine.js';
 import { overheadRateForQty } from '../../shared/domain.js';
+import { STANDARD_ROUTINGS, laborCost, routingSteps, laborRollup } from '../calc/routing.js';
 
 // ── deterministic randomness ───────────────────────────────────────────────
 function mulberry32(a) {
@@ -847,6 +848,10 @@ export function seed(db, { verbose = true } = {}) {
   }
   log(`${salesOrders.length} sales orders`);
 
+  // -- routings --
+  const routings = STANDARD_ROUTINGS.map((r) => db.insert('routings', { ...r, notes: '', tags: [] }, sys));
+  log(`${routings.length} routings`);
+
   // -- work orders --
   const STAGE_MIX = ['planned', 'planned', 'planned', 'released', 'released', 'staging', 'staging', 'in_process', 'in_process', 'in_process', 'qc_hold', 'qa_review', 'qa_review', 'complete', 'complete', 'complete', 'complete', 'complete'];
   const workOrders = [];
@@ -921,14 +926,27 @@ export function seed(db, { verbose = true } = {}) {
       supervisorId: userFor('production').id,
       operatorIds: pickN(byRole('production').map((u) => u.id), 2),
       materials,
-      steps: stepNames.map((name, s) => ({
-        name,
-        done: s < progressIndex,
-        doneBy: s < progressIndex ? userFor('production').id : '',
-        doneAt: s < progressIndex ? daysAgo(int(1, 14)) : null,
-        requiresSignature: /sampling|uniformity|verification|check/i.test(name),
-        notes: '',
-      })),
+      ...(() => {
+        // Steps come from the format's routing; finished steps carry the time
+        // the crew clocked, a little over or under the standard.
+        const routing = routings.find((r) => r.format === formula.format);
+        const base = routing
+          ? routingSteps(routing, plannedQty)
+          : stepNames.map((name, s) => ({ seq: s + 1, name, workCenter: '', setupMin: 0, runRatePerHour: 0, crew: 1, laborRate: 0, plannedMin: 0, standardLaborCost: 0, requiresSignature: /sampling|uniformity|verification|check/i.test(name), timeEntries: [], actualMin: 0, actualLaborCost: 0 }));
+        const operator = userFor('production').id;
+        const steps = base.map((st, s) => {
+          const finished = s < progressIndex;
+          if (!finished) return { ...st, done: false, doneBy: '', doneAt: null, notes: '' };
+          const minutes = Number((st.plannedMin * money(0.85, 1.25, 3)).toFixed(1));
+          const at = daysAgo(int(1, 14));
+          return {
+            ...st, done: true, doneBy: operator, doneAt: at, notes: '',
+            timeEntries: minutes > 0 ? [{ userId: operator, startedAt: new Date(Date.parse(at) - minutes * 60_000).toISOString(), endedAt: at, minutes, note: '' }] : [],
+            actualMin: minutes, actualLaborCost: laborCost(st, minutes),
+          };
+        });
+        return { routingId: routing?.id ?? '', steps, ...laborRollup(steps) };
+      })(),
       qcChecks: [
         { name: 'Blend uniformity (RSD)', spec: '≤ 5.0%', result: started ? `${money(1.2, 4.6, 1)}%` : '', status: started ? 'pass' : 'pending', checkedBy: started ? byRole('quality')[1].id : '', checkedAt: started ? daysAgo(int(1, 10)) : null },
         { name: 'Average weight', spec: '± 7.5% of target', result: started ? `${money(-3.5, 3.5, 1)}%` : '', status: started ? 'pass' : 'pending', checkedBy: started ? byRole('quality')[1].id : '', checkedAt: started ? daysAgo(int(1, 10)) : null },

@@ -9,7 +9,7 @@ import {
   Badge, Card, CardHead, Combo, CopyButton, Field, Flag, KeyValue, Loading, Modal,
   NumberInput, Section, Select, StackBar, StatusBadge, Tabs, TextArea, TextInput, Toggle,
 } from '../components/ui';
-import { api, qs, useRecord } from '../lib/api';
+import { api, qs, useList, useRecord } from '../lib/api';
 import { useUi } from '../lib/ui';
 import { useSession } from '../lib/session';
 import { useViewing, useAlsoHere } from '../lib/realtime';
@@ -17,7 +17,7 @@ import { Avatar } from '../components/ui';
 import { useCustomers, useProjects, useUsers } from '../lib/lookups';
 import { date, mg, money, number, percent, unitMoney } from '../lib/format';
 import { CAPSULE_SHELLS, FORMULA_FORMATS, FORMULA_STATUS } from '@shared/domain';
-import type { Formula, IngredientLine, PackagingLine, QuoteResult, ServiceLine } from '../lib/types';
+import type { Formula, IngredientLine, PackagingLine, QuoteResult, Routing, ServiceLine } from '../lib/types';
 
 interface CatalogueItem {
   id: string; itemCode: string; name: string; type: string; category: string; form: string;
@@ -72,6 +72,13 @@ export function FormulaBuilder() {
 
   const { data: saved, isLoading } = useRecord<Formula>('formulas', isNew ? undefined : id);
   const [draft, setDraft] = useState<Partial<Formula>>(blankFormula);
+  const { data: routings } = useList<Routing>('routings', { sort: 'code', limit: 200 });
+  const routingHint = (() => {
+    const own = draft.routingId ? routings?.rows.find((r) => r.id === draft.routingId) : null;
+    if (own) return `${own.operations.length} operations · batches start on ${own.operations.find((o) => o.workCenter)?.workCenter ?? 'the routing\'s work center'}`;
+    const fallback = routings?.rows.find((r) => r.format === draft.format && r.isDefault) ?? routings?.rows.find((r) => r.format === draft.format);
+    return fallback ? `Batches will follow ${fallback.code} unless you pick one.` : 'No routing for this format yet — add one under Make › Routings.';
+  })();
   const [dirty, setDirty] = useState(false);
   const [tab, setTab] = useState('build');
   const [pickerFor, setPickerFor] = useState<'actives' | 'excipients' | 'packaging' | null>(null);
@@ -551,6 +558,16 @@ export function FormulaBuilder() {
                       <NumberInput value={draft.unitsPerBatch} onChange={(value) => update({ unitsPerBatch: value })} disabled={!writable} min={1} />
                     </Field>
                   </div>
+                  <Field label="Routing" hint={routingHint}>
+                    <Select
+                      value={draft.routingId ?? ''}
+                      onChange={(value) => update({ routingId: value })}
+                      disabled={!writable}
+                      allowEmpty
+                      placeholder="Default routing for this format"
+                      options={(routings?.rows ?? []).map((r) => ({ value: r.id, label: `${r.code} · ${r.name}${r.format !== draft.format ? ` (${r.format})` : ''}` }))}
+                    />
+                  </Field>
                   {draft.format === 'capsule' && (
                     <Field label="Capsule shell size">
                       <Select

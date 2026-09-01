@@ -185,7 +185,7 @@ export interface Formula extends BaseRecord {
   code: string; name: string; revision: number; status: string; supersedesId: string;
   customerId: string; projectId: string; format: string; isBulk: boolean;
   servingSize: string; servingsPerUnit: number; unitsPerBatch: number;
-  totalFormatWeightMg: number; capsuleShellSize: string; overagePct: number;
+  totalFormatWeightMg: number; capsuleShellSize: string; overagePct: number; routingId?: string;
   actives: IngredientLine[]; excipients: IngredientLine[];
   packaging: PackagingLine[]; services: ServiceLine[];
   allergens: string[]; claims: string[];
@@ -250,9 +250,27 @@ export interface WorkOrderMaterial {
   plannedQty: number; issuedQty: number; uom: string; issuedAt: string | null; issuedBy: string;
 }
 
+export interface TimeEntry {
+  userId: string; startedAt: string; endedAt: string | null; minutes: number; note: string; manual?: boolean;
+}
+
 export interface BatchStep {
   name: string; done: boolean; doneBy: string; doneAt: string | null;
   requiresSignature: boolean; notes: string;
+  // Routing-derived: where it runs, how long it should take, what it should cost.
+  seq?: number; workCenter?: string; setupMin?: number; runRatePerHour?: number; crew?: number; laborRate?: number;
+  plannedMin?: number; standardLaborCost?: number;
+  timeEntries?: TimeEntry[]; actualMin?: number; actualLaborCost?: number;
+}
+
+export interface RoutingOperation {
+  seq: number; name: string; workCenter: string; setupMin: number; runRatePerHour: number; runMin?: number;
+  crew: number; laborRate: number; requiresSignature: boolean;
+}
+
+export interface Routing extends BaseRecord {
+  code: string; name: string; format: string; isDefault: boolean; hoursPerShift: number;
+  operations: RoutingOperation[]; notes: string; tags: string[];
 }
 
 export interface QcCheck {
@@ -273,6 +291,7 @@ export interface WorkOrder extends BaseRecord {
   materials: WorkOrderMaterial[]; steps: BatchStep[]; qcChecks: QcCheck[]; deviations: Deviation[];
   standardUnitCost?: number; standardMaterialCost?: number;
   actualUnitCost?: number; actualMaterialCost?: number; outputLotId?: string;
+  routingId?: string; standardLaborMin?: number; standardLaborCost?: number; actualLaborMin?: number; actualLaborCost?: number;
   yieldPct: number; holdReason: string; boardOrder: number; stageEnteredAt: string | null;
   releasedBy: string; releasedAt: string | null; notes: string; tags: string[];
 }
