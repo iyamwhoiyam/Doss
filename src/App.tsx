@@ -17,6 +17,7 @@ const Routings = lazy(() => import('./pages/Routings').then((m) => ({ default: m
 const WorkOrderDetail = lazy(() => import('./pages/WorkOrderDetail').then((m) => ({ default: m.WorkOrderDetail })));
 const Inventory = lazy(() => import('./pages/Inventory').then((m) => ({ default: m.Inventory })));
 const ItemDetail = lazy(() => import('./pages/ItemDetail').then((m) => ({ default: m.ItemDetail })));
+const CountSheet = lazy(() => import('./pages/CountSheet').then((m) => ({ default: m.CountSheet })));
 const Purchasing = lazy(() => import('./pages/Purchasing').then((m) => ({ default: m.Purchasing })));
 const VendorDetail = lazy(() => import('./pages/VendorDetail').then((m) => ({ default: m.VendorDetail })));
 const PurchaseOrderDetail = lazy(() => import('./pages/PurchaseOrderDetail').then((m) => ({ default: m.PurchaseOrderDetail })));
@@ -93,6 +94,7 @@ function AuthedApp() {
           <Route path="/production/:id" element={<WorkOrderDetail />} />
 
           <Route path="/inventory" element={<Inventory />} />
+          <Route path="/inventory/counts/:id" element={<CountSheet />} />
           <Route path="/inventory/:id" element={<ItemDetail />} />
 
           <Route path="/purchasing" element={<Purchasing />} />

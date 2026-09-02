@@ -352,10 +352,27 @@ export interface Notification extends BaseRecord {
   severity: string; read: boolean; readAt: string | null;
 }
 
+export interface CountLine {
+  lotId: string; lotNumber: string; itemId: string; uom?: string; unitCost?: number;
+  expectedQty: number; countedQty: number | null; variance: number | null; countedBy: string; countedAt?: string | null;
+  recount?: boolean; note?: string; posted?: boolean; postedDelta?: number;
+  // Present on the enriched sheet from /inventory/counts/:id
+  itemName?: string; itemCode?: string; lotStatus?: string; locationId?: string; bookQty?: number;
+  variancePct?: number | null; varianceValue?: number | null; outOfTolerance?: boolean;
+}
+
+export interface CountSummary {
+  lines: number; counted: number; withVariance: number; outOfTolerance: number; recounts: number;
+  netQty: number; netValue: number; absValue: number; accuracyPct: number | null;
+}
+
 export interface CycleCount extends BaseRecord {
-  countNumber: string; locationId: string; status: string; scheduledFor: string | null;
-  lines: { lotId: string; lotNumber: string; itemId: string; expectedQty: number; countedQty: number | null; variance: number | null; countedBy: string }[];
-  countedBy: string; closedBy: string; closedAt: string | null; notes: string;
+  countNumber: string; locationId: string; scope?: 'location' | 'items' | 'all'; itemIds?: string[]; blind?: boolean; tolerancePct?: number;
+  status: string; scheduledFor: string | null;
+  lines: CountLine[];
+  countedBy: string; startedAt?: string | null; reviewedAt?: string | null; closedBy: string; closedAt: string | null;
+  postedValue?: number; postedLines?: number; notes: string;
+  summary?: CountSummary;
 }
 
 export interface Setting extends BaseRecord {

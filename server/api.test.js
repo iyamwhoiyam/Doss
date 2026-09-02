@@ -949,6 +949,70 @@ test('a routing drives batch steps, fixes standard labor, sizes the run, and cap
   assert.equal(closed.status, 409);
 });
 
+test('a physical count is scheduled, counted blind, reviewed against tolerance, recounted and posted', async () => {
+  await post('/api/auth/logout');
+  await post('/api/auth/login', { email: 'jbradfield@enovascience.com', password: 'enova2026' });
+
+  const location = db.find('locations').find((l) => db.find('lots', { locationId: l.id }).some((lot) => lot.qtyOnHand > 0));
+  const sheet = await post('/api/inventory/counts', { scope: 'location', locationId: location.id, blind: true, tolerancePct: 2 });
+  assert.equal(sheet.status, 'scheduled');
+  assert.ok(sheet.lines.length >= 2, 'the sheet lists the lots on hand there');
+  assert.ok(sheet.lines.every((l) => l.locationId === location.id && l.expectedQty > 0 && l.itemName));
+
+  const started = await post(`/api/inventory/counts/${sheet.id}/start`);
+  assert.equal(started.status, 'counting');
+
+  // count every line: the first one matches, the second is 10% short, the rest match
+  for (const [i, line] of sheet.lines.entries()) {
+    const counted = i === 1 ? Number((line.expectedQty * 0.9).toFixed(3)) : line.expectedQty;
+    await post(`/api/inventory/counts/${sheet.id}/lines/${i}`, { countedQty: counted });
+  }
+  const counted = await get(`/api/inventory/counts/${sheet.id}`);
+  assert.equal(counted.summary.counted, sheet.lines.length);
+  assert.equal(counted.summary.outOfTolerance, 1);
+  assert.equal(counted.lines[1].outOfTolerance, true);
+  assert.ok(counted.lines[1].varianceValue < 0);
+
+  // review, then posting is refused while a line sits outside tolerance
+  const review = await post(`/api/inventory/counts/${sheet.id}/review`);
+  assert.equal(review.status, 'review');
+  const refused = await api('POST', `/api/inventory/counts/${sheet.id}/post`, {}, { raw: true });
+  assert.equal(refused.status, 422);
+
+  // recount the flagged line; it comes back matching the book, and the sheet posts cleanly
+  const recount = await post(`/api/inventory/counts/${sheet.id}/recount`, { indexes: [1] });
+  assert.equal(recount.status, 'counting');
+  assert.equal(recount.lines[1].countedQty, null);
+  assert.equal(recount.lines[1].recount, true);
+  const shortBy = 0.5;
+  const finalQty = Number((sheet.lines[1].expectedQty - shortBy).toFixed(3));
+  await post(`/api/inventory/counts/${sheet.id}/lines/1`, { countedQty: finalQty, note: 'spillage on the floor' });
+  await post(`/api/inventory/counts/${sheet.id}/review`);
+  const before = db.get('lots', sheet.lines[1].lotId).qtyOnHand;
+  const posted = await post(`/api/inventory/counts/${sheet.id}/post`, { acceptOutOfTolerance: true, reason: 'accepted after recount' });
+  assert.equal(posted.status, 'closed');
+  assert.equal(db.get('lots', sheet.lines[1].lotId).qtyOnHand, finalQty, 'the lot now holds what was counted');
+  assert.equal(db.get('lots', sheet.lines[0].lotId).qtyOnHand, sheet.lines[0].expectedQty, 'a matching count leaves the lot alone');
+  const txn = db.find('inventoryTxns', { refId: sheet.id, type: 'count' });
+  assert.equal(txn.length, 1, 'one count transaction per adjusted lot');
+  assert.ok(Math.abs(txn[0].qty - (finalQty - before)) < 0.0005);
+  assert.match(txn[0].reason, /spillage/);
+  assert.equal(posted.postedLines, 1);
+  assert.ok(posted.postedValue <= 0);
+
+  // closed sheets are final
+  const again = await api('POST', `/api/inventory/counts/${sheet.id}/post`, {}, { raw: true });
+  assert.equal(again.status, 409);
+
+  // the accuracy report sees it
+  const overview = await get('/api/reports/overview');
+  const row = overview.accuracy.rows.find((r) => r.id === sheet.id);
+  assert.ok(row, 'posted count is in the accuracy report');
+  assert.equal(row.lines, sheet.lines.length);
+  const csv = await fetch(`${base}/api/reports/export/count-accuracy`, { headers: { Cookie: jar() } }).then((r) => r.text());
+  assert.match(csv.split('\n')[0], /Accuracy %,Net adjustment \$/);
+});
+
 async function postCsv(url, csv, filename = 'data.csv') {
   const form = new FormData();
   form.append('file', new Blob([csv], { type: 'text/csv' }), filename);

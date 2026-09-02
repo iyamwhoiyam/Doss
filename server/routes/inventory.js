@@ -353,19 +353,181 @@ export function inventoryRouter(db) {
     res.json(result);
   }));
 
-  // -- cycle counts --
+  // -- cycle counts / physical inventory --
+
+  /** Fresh book figures for a sheet's lines, and the totals the review screen shows. */
+  const summarise = (count) => {
+    const tolerance = Number(count.tolerancePct ?? setting('inventory.countTolerancePct', 2)) || 0;
+    const lines = (count.lines ?? []).map((line) => {
+      const counted = line.countedQty === null || line.countedQty === undefined ? null : Number(line.countedQty);
+      const variance = counted === null ? null : Number((counted - line.expectedQty).toFixed(4));
+      const pct = variance === null ? null : line.expectedQty ? Number(((variance / line.expectedQty) * 100).toFixed(2)) : (variance ? 100 : 0);
+      return {
+        ...line,
+        variance,
+        variancePct: pct,
+        varianceValue: variance === null ? null : Number((variance * (line.unitCost || 0)).toFixed(2)),
+        outOfTolerance: pct !== null && Math.abs(pct) > tolerance,
+      };
+    });
+    const counted = lines.filter((l) => l.countedQty !== null && l.countedQty !== undefined);
+    const withVariance = counted.filter((l) => l.variance !== 0);
+    return {
+      lines,
+      tolerancePct: tolerance,
+      summary: {
+        lines: lines.length,
+        counted: counted.length,
+        withVariance: withVariance.length,
+        outOfTolerance: lines.filter((l) => l.outOfTolerance).length,
+        recounts: lines.filter((l) => l.recount).length,
+        netQty: Number(withVariance.reduce((s, l) => s + l.variance, 0).toFixed(4)),
+        netValue: Number(withVariance.reduce((s, l) => s + (l.varianceValue || 0), 0).toFixed(2)),
+        absValue: Number(withVariance.reduce((s, l) => s + Math.abs(l.varianceValue || 0), 0).toFixed(2)),
+        accuracyPct: counted.length ? Number(((counted.filter((l) => !l.outOfTolerance).length / counted.length) * 100).toFixed(1)) : null,
+      },
+    };
+  };
+
+  const enrich = (count) => {
+    const { lines, summary, tolerancePct } = summarise(count);
+    return {
+      ...count,
+      tolerancePct,
+      summary,
+      lines: lines.map((line) => {
+        const item = db.get('items', line.itemId);
+        const lot = db.get('lots', line.lotId);
+        return { ...line, itemName: item?.name ?? '(unknown item)', itemCode: item?.itemCode ?? '', lotStatus: lot?.status ?? '', locationId: lot?.locationId ?? '', bookQty: lot?.qtyOnHand ?? line.expectedQty };
+      }),
+    };
+  };
+
+  /** The lots a count sheet covers — everything with stock in scope. */
+  const lotsInScope = (scope, { locationId, itemIds }) => {
+    let lots = db.find('lots').filter((l) => (l.qtyOnHand || 0) > 0 && !['consumed', 'rejected'].includes(l.status));
+    if (scope === 'location') lots = lots.filter((l) => l.locationId === locationId);
+    if (scope === 'items') lots = lots.filter((l) => itemIds.includes(l.itemId));
+    return lots.sort((a, b) => (a.locationId || '').localeCompare(b.locationId || '') || a.lotNumber.localeCompare(b.lotNumber));
+  };
+
+  router.get('/counts/:id', route((req, res) => {
+    res.json(enrich(db.getOrFail('cycleCounts', req.params.id)));
+  }));
+
+  /** Schedule a count sheet: snapshot the book quantity of every lot in scope. */
+  router.post('/counts', requirePermission('inventory.write'), route((req, res) => {
+    const { scope = 'location', locationId = '', itemIds = [], scheduledFor = null, blind = true, tolerancePct, notes = '' } = req.body ?? {};
+    if (scope === 'location' && !locationId) throw new HttpError(422, 'Pick the location to count');
+    if (scope === 'items' && !itemIds.length) throw new HttpError(422, 'Pick at least one item to count');
+    if (scope === 'location') db.getOrFail('locations', locationId);
+    const lots = lotsInScope(scope, { locationId, itemIds });
+    if (!lots.length) throw new HttpError(422, 'Nothing is on hand in that scope, so there is nothing to count');
+
+    const count = db.insert('cycleCounts', {
+      countNumber: db.nextSequence('COUNT', 'CC-{yyyy}-{n:3}'),
+      locationId: scope === 'location' ? locationId : '',
+      scope, itemIds: scope === 'items' ? itemIds : [], blind: Boolean(blind),
+      tolerancePct: tolerancePct != null ? num(tolerancePct, 2) : num(setting('inventory.countTolerancePct', 2), 2),
+      status: 'scheduled',
+      scheduledFor: scheduledFor || new Date().toISOString(),
+      lines: lots.map((lot) => ({
+        lotId: lot.id, lotNumber: lot.lotNumber, itemId: lot.itemId, uom: lot.uom, unitCost: lot.unitCost || 0,
+        expectedQty: lot.qtyOnHand, countedQty: null, variance: null, countedBy: '', countedAt: null, recount: false, note: '',
+      })),
+      countedBy: '', notes,
+    }, actorContext(req));
+
+    logActivity(db, req, {
+      type: 'inventory', title: `Count ${count.countNumber} scheduled`,
+      detail: `${count.lines.length} lots · ${scope === 'location' ? db.get('locations', locationId)?.name : scope === 'items' ? `${itemIds.length} items` : 'whole warehouse'}`,
+      tone: 'info', refType: 'cycleCount', refId: count.id, link: `/inventory/counts/${count.id}`,
+    });
+    res.status(201).json(enrich(count));
+  }));
+
+  /** Start counting: the book quantity is re-snapshotted so the sheet is current. */
+  router.post('/counts/:id/start', requirePermission('inventory.write'), route((req, res) => {
+    const count = db.getOrFail('cycleCounts', req.params.id);
+    if (!['scheduled', 'counting'].includes(count.status)) throw new HttpError(409, `A ${count.status} count cannot be started`);
+    const lines = count.lines.map((line) => ({ ...line, expectedQty: db.get('lots', line.lotId)?.qtyOnHand ?? line.expectedQty }));
+    res.json(enrich(db.update('cycleCounts', count.id, { status: 'counting', startedAt: count.startedAt ?? new Date().toISOString(), lines, countedBy: count.countedBy || req.user.id }, actorContext(req))));
+  }));
+
+  /** Record one line's count. Blind or not, the response echoes the whole sheet. */
+  router.post('/counts/:id/lines/:index', requirePermission('inventory.write'), route((req, res) => {
+    const count = db.getOrFail('cycleCounts', req.params.id);
+    if (!['scheduled', 'counting', 'review'].includes(count.status)) throw new HttpError(409, `A ${count.status} count no longer takes entries`);
+    const index = num(req.params.index, -1);
+    if (!count.lines[index]) throw new HttpError(404, 'That count line does not exist');
+    const { countedQty, note } = req.body ?? {};
+    const counted = countedQty === null || countedQty === '' || countedQty === undefined ? null : num(countedQty, NaN);
+    if (counted !== null && (!Number.isFinite(counted) || counted < 0)) throw new HttpError(422, 'Counted quantity must be zero or more');
+    const now = new Date().toISOString();
+    const lines = count.lines.map((line, i) => (i === index ? {
+      ...line,
+      countedQty: counted,
+      variance: counted === null ? null : Number((counted - line.expectedQty).toFixed(4)),
+      countedBy: counted === null ? '' : req.user.id,
+      countedAt: counted === null ? null : now,
+      recount: counted === null ? line.recount : false,
+      note: note ?? line.note,
+    } : line));
+    const patch = { lines };
+    if (count.status === 'scheduled') { patch.status = 'counting'; patch.startedAt = now; }
+    if (!count.countedBy) patch.countedBy = req.user.id;
+    res.json(enrich(db.update('cycleCounts', count.id, patch, actorContext(req))));
+  }));
+
+  /** Send the sheet to review once every line has a count. */
+  router.post('/counts/:id/review', requirePermission('inventory.write'), route((req, res) => {
+    const count = db.getOrFail('cycleCounts', req.params.id);
+    if (count.status !== 'counting') throw new HttpError(409, `A ${count.status} count cannot go to review`);
+    const missing = count.lines.filter((l) => l.countedQty === null || l.countedQty === undefined);
+    if (missing.length && !req.body?.allowUncounted) throw new HttpError(422, `${missing.length} line${missing.length === 1 ? ' has' : 's have'} no count yet`);
+    res.json(enrich(db.update('cycleCounts', count.id, { status: 'review', reviewedAt: new Date().toISOString() }, actorContext(req))));
+  }));
+
+  /** Ask for a recount of the given lines: their counts are cleared and the sheet reopens. */
+  router.post('/counts/:id/recount', requirePermission('inventory.write'), route((req, res) => {
+    const count = db.getOrFail('cycleCounts', req.params.id);
+    if (!['counting', 'review'].includes(count.status)) throw new HttpError(409, `A ${count.status} count cannot be recounted`);
+    const indexes = new Set((req.body?.indexes ?? []).map((i) => num(i, -1)));
+    if (!indexes.size) throw new HttpError(422, 'Pick the lines to recount');
+    const lines = count.lines.map((line, i) => (indexes.has(i) ? { ...line, countedQty: null, variance: null, countedBy: '', countedAt: null, recount: true } : line));
+    res.json(enrich(db.update('cycleCounts', count.id, { status: 'counting', lines }, actorContext(req))));
+  }));
+
+  router.post('/counts/:id/cancel', requirePermission('inventory.write'), route((req, res) => {
+    const count = db.getOrFail('cycleCounts', req.params.id);
+    if (count.status === 'closed') throw new HttpError(409, 'A posted count cannot be cancelled');
+    res.json(enrich(db.update('cycleCounts', count.id, { status: 'cancelled', closedBy: req.user.id, closedAt: new Date().toISOString() }, actorContext(req))));
+  }));
+
+  /**
+   * Post the sheet: every counted line whose count differs from the lot's current
+   * book quantity becomes a count transaction, so the ledger explains each
+   * change and the lot lands on what was physically there.
+   */
   router.post('/counts/:id/post', requirePermission('inventory.write'), route((req, res) => {
     const ctx = actorContext(req);
     const result = db.transaction((tx) => {
       const count = tx.getOrFail('cycleCounts', req.params.id);
-      if (count.status === 'closed') throw new HttpError(409, 'This cycle count is already closed');
+      if (count.status === 'closed') throw new HttpError(409, 'This cycle count is already posted');
+      if (count.status === 'cancelled') throw new HttpError(409, 'This cycle count was cancelled');
+      const { lines: checked } = summarise(count);
+      const blocking = checked.filter((l) => l.outOfTolerance && !l.recount && !req.body?.acceptOutOfTolerance);
+      if (blocking.length) throw new HttpError(422, `${blocking.length} line${blocking.length === 1 ? ' is' : 's are'} outside the ${count.tolerancePct ?? 2}% tolerance — recount them, or post with the variances accepted`);
 
-      for (const line of count.lines ?? []) {
-        if (line.countedQty === null || line.countedQty === undefined) continue;
+      let postedValue = 0;
+      let postedLines = 0;
+      const now = new Date().toISOString();
+      const lines = count.lines.map((line) => {
+        if (line.countedQty === null || line.countedQty === undefined) return line;
         const lot = tx.get('lots', line.lotId);
-        if (!lot) continue;
+        if (!lot) return line;
         const delta = Number((line.countedQty - lot.qtyOnHand).toFixed(4));
-        if (delta === 0) continue;
+        if (delta === 0) return { ...line, posted: true, postedDelta: 0 };
         tx.insert('inventoryTxns', {
           txnNumber: tx.nextSequence('TXN', 'T-{n:6}'),
           type: 'count',
@@ -376,30 +538,36 @@ export function inventoryRouter(db) {
           toLocationId: lot.locationId,
           refType: 'cycleCount',
           refId: count.id,
-          reason: `Cycle count ${count.countNumber}`,
+          reason: `Cycle count ${count.countNumber}${line.note ? ` — ${line.note}` : ''}`,
           unitCost: lot.unitCost,
           balanceAfter: line.countedQty,
-          performedAt: new Date().toISOString(),
+          performedAt: now,
         }, ctx);
         tx.update('lots', lot.id, { qtyOnHand: line.countedQty }, ctx);
-      }
+        postedValue += delta * (lot.unitCost || 0);
+        postedLines += 1;
+        return { ...line, posted: true, postedDelta: delta };
+      });
       return tx.update('cycleCounts', count.id, {
         status: 'closed',
+        lines,
         closedBy: req.user.id,
-        closedAt: new Date().toISOString(),
+        closedAt: now,
+        postedValue: Number(postedValue.toFixed(2)),
+        postedLines,
       }, ctx);
     }, ctx);
 
     logActivity(db, req, {
       type: 'inventory',
       title: `Cycle count ${result.countNumber} posted`,
-      detail: `${(result.lines ?? []).filter((l) => l.variance).length} variances adjusted`,
+      detail: `${result.postedLines} lot${result.postedLines === 1 ? '' : 's'} adjusted · net ${result.postedValue < 0 ? '−' : ''}$${Math.abs(result.postedValue).toFixed(2)}`,
       tone: 'info',
       refType: 'cycleCount',
       refId: result.id,
-      link: '/inventory',
+      link: `/inventory/counts/${result.id}`,
     });
-    res.json(result);
+    res.json(enrich(result));
   }));
 
   /** Lot genealogy: which work orders consumed this lot, and which customers received them. */

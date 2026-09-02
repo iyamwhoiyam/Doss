@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 
 import { PageHeader } from '../components/Shell';
 import { Icon } from '../components/Icon';
@@ -15,6 +16,10 @@ interface Overview {
   variance: {
     batches: number; totalVariance: number; laborVariance: number; avgYield: number | null;
     rows: { id: string; woNumber: string; productName: string; plannedQty: number; actualQty: number; yieldPct: number | null; standardUnitCost: number; actualUnitCost: number; unitVariance: number; unitVariancePct: number; totalVariance: number; favorable: boolean; standardLaborCost: number; actualLaborCost: number; laborVariance: number | null }[];
+  };
+  accuracy: {
+    counts: number; accuracyPct: number | null; netValue: number; absValue: number;
+    rows: { id: string; countNumber: string; closedAt: string | null; location: string; lines: number; within: number; accuracyPct: number | null; netValue: number; absValue: number }[];
   };
 }
 
@@ -64,7 +69,7 @@ export function Reports() {
     <div className="page page-wide">
       <PageHeader title="Reports" subtitle="Live rollups off the operating data — export any of them to a spreadsheet." />
 
-      <div className="grid-4" style={{ marginBottom: 'var(--s-4)' }}>
+      <div className="grid grid-4" style={{ marginBottom: 'var(--s-4)' }}>
         <Stat label="Produced (12 wk)" value={compact(totalProduced)} sub="finished units" />
         <Stat label="Inventory value" value={money(data.inventory.total, 0)} sub={`${data.inventory.rows.length} items on hand`} />
         <Stat label="Quote win rate" value={`${data.pipeline.winRate}%`} sub={`${data.pipeline.won} won · ${data.pipeline.lost} lost`} />
@@ -111,6 +116,33 @@ export function Reports() {
           />
         ) : (
           <div className="card-body cell-sub">No costed batches yet. A batch started from a formula records its standard cost; its actual cost lands when output is recorded, and the variance shows here.</div>
+        )}
+      </Card>
+
+      <Card style={{ marginBottom: 'var(--s-4)' }}>
+        <CardHead
+          title="Inventory record accuracy"
+          subtitle={data.accuracy.counts
+            ? `${data.accuracy.counts} posted count${data.accuracy.counts === 1 ? '' : 's'} · ${data.accuracy.accuracyPct}% of counted lots within tolerance · net ${data.accuracy.netValue < 0 ? '−' : '+'}${money(Math.abs(data.accuracy.netValue), 0)} adjusted (${money(data.accuracy.absValue, 0)} gross)`
+            : 'Posted cycle counts, how many lots were within tolerance, and what the book had to move by'}
+          icon="clipboard"
+          actions={<ExportLink report="count-accuracy" />}
+        />
+        {data.accuracy.rows.length > 0 ? (
+          <DataTable
+            columns={[
+              { key: 'count', header: 'Count', sortValue: (r) => r.countNumber, render: (r) => <Link className="mono" to={`/inventory/counts/${r.id}`}>{r.countNumber}</Link> },
+              { key: 'scope', header: 'Scope', sortValue: (r) => r.location, render: (r) => r.location },
+              { key: 'closed', header: 'Posted', sortValue: (r) => r.closedAt ?? '', render: (r) => r.closedAt?.slice(0, 10) ?? '—' },
+              { key: 'lines', header: 'Lots', numeric: true, sortValue: (r) => r.lines, render: (r) => `${r.within}/${r.lines}` },
+              { key: 'acc', header: 'Accuracy', numeric: true, sortValue: (r) => r.accuracyPct ?? 0, render: (r) => r.accuracyPct == null ? '—' : <span className="tone-text" data-tone={r.accuracyPct >= 95 ? 'success' : r.accuracyPct >= 85 ? 'warning' : 'danger'}>{r.accuracyPct}%</span> },
+              { key: 'net', header: 'Net adjustment', numeric: true, sortValue: (r) => r.netValue, render: (r) => <span className="tone-text" data-tone={r.netValue < 0 ? 'danger' : 'success'}>{r.netValue < 0 ? '−' : '+'}{money(Math.abs(r.netValue), 0)}</span> },
+              { key: 'abs', header: 'Gross', numeric: true, sortValue: (r) => r.absValue, render: (r) => money(r.absValue, 0) },
+            ] as Column<Overview['accuracy']['rows'][number]>[]}
+            rows={data.accuracy.rows.slice(0, 12)}
+          />
+        ) : (
+          <div className="card-body cell-sub">No counts posted yet. Schedule one from Inventory › Cycle counts; accuracy shows here once it is posted.</div>
         )}
       </Card>
 

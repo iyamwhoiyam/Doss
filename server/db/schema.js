@@ -334,12 +334,23 @@ export const schema = {
     fields: {
       countNumber: str('Count number', { required: true }),
       locationId: str('Location'),
-      status: { type: 'string', label: 'Status', enum: ['scheduled', 'counting', 'review', 'closed'], default: 'scheduled' },
+      // What the sheet covers: one location, a set of items, or everything on hand.
+      scope: { type: 'string', label: 'Scope', enum: ['location', 'items', 'all'], default: 'location' },
+      itemIds: arr('Items in scope'),
+      // Blind: counters do not see the book quantity until the sheet is in review.
+      blind: bool('Blind count'),
+      tolerancePct: num('Tolerance %', { default: 2 }),
+      status: { type: 'string', label: 'Status', enum: ['scheduled', 'counting', 'review', 'closed', 'cancelled'], default: 'scheduled' },
       scheduledFor: date('Scheduled for'),
+      // [{ lotId, lotNumber, itemId, uom, unitCost, expectedQty, countedQty, variance, countedBy, countedAt, recount, note }]
       lines: arr('Lines'),
       countedBy: str('Counted by'),
+      startedAt: date('Counting started'),
+      reviewedAt: date('Sent to review'),
       closedBy: str('Closed by'),
       closedAt: date('Closed'),
+      postedValue: num('Net adjustment value'),
+      postedLines: num('Lines adjusted'),
       notes: str('Notes'),
     },
     indexes: ['status', 'locationId'],

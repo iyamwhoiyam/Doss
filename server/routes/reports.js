@@ -122,7 +122,52 @@ function variance(db) {
   };
 }
 
+/**
+ * Inventory record accuracy: across posted counts, how many counted lots were
+ * within tolerance, and what the adjustments added up to.
+ */
+function countAccuracy(db) {
+  const r = (n, dp) => Number(n.toFixed(dp));
+  const rows = db.find('cycleCounts', { status: 'closed' })
+    .map((c) => {
+      const tolerance = Number(c.tolerancePct ?? 2) || 0;
+      const counted = (c.lines ?? []).filter((l) => l.countedQty !== null && l.countedQty !== undefined);
+      const within = counted.filter((l) => {
+        const v = (l.countedQty - l.expectedQty);
+        const pct = l.expectedQty ? Math.abs(v / l.expectedQty) * 100 : (v ? 100 : 0);
+        return pct <= tolerance;
+      });
+      const value = counted.reduce((s, l) => s + (l.countedQty - l.expectedQty) * (l.unitCost || 0), 0);
+      const absValue = counted.reduce((s, l) => s + Math.abs((l.countedQty - l.expectedQty) * (l.unitCost || 0)), 0);
+      const location = c.locationId ? db.get('locations', c.locationId) : null;
+      return {
+        id: c.id, countNumber: c.countNumber, closedAt: c.closedAt, scope: c.scope ?? 'location',
+        location: location?.name ?? (c.scope === 'all' ? 'Whole warehouse' : c.scope === 'items' ? 'Selected items' : '—'),
+        lines: counted.length, within: within.length,
+        accuracyPct: counted.length ? r((within.length / counted.length) * 100, 1) : null,
+        netValue: r(c.postedValue ?? value, 2), absValue: r(absValue, 2),
+      };
+    })
+    .sort((a, b) => (b.closedAt || '').localeCompare(a.closedAt || ''));
+  const lines = rows.reduce((s, x) => s + x.lines, 0);
+  const within = rows.reduce((s, x) => s + x.within, 0);
+  return {
+    rows,
+    counts: rows.length,
+    accuracyPct: lines ? r((within / lines) * 100, 1) : null,
+    netValue: r(rows.reduce((s, x) => s + x.netValue, 0), 2),
+    absValue: r(rows.reduce((s, x) => s + x.absValue, 0), 2),
+  };
+}
+
 const CSV = {
+  'count-accuracy': (db) => toCsv(
+    ['Count', 'Scope', 'Closed', 'Lots counted', 'Within tolerance', 'Accuracy %', 'Net adjustment $', 'Gross adjustment $'],
+    countAccuracy(db).rows.map((x) => ({
+      Count: x.countNumber, Scope: x.location, Closed: x.closedAt?.slice(0, 10) ?? '', 'Lots counted': x.lines,
+      'Within tolerance': x.within, 'Accuracy %': x.accuracyPct ?? '', 'Net adjustment $': x.netValue, 'Gross adjustment $': x.absValue,
+    })),
+  ),
   'cost-variance': (db) => toCsv(
     ['Work order', 'Batch', 'Product', 'Planned qty', 'Actual qty', 'Yield %', 'Standard $/unit', 'Actual $/unit', 'Variance $/unit', 'Variance %', 'Total variance $', 'Standard labor min', 'Actual labor min', 'Standard labor $', 'Actual labor $', 'Labor variance $'],
     variance(db).rows.map((x) => ({
@@ -162,6 +207,7 @@ export function reportsRouter(db) {
       pipeline: pipeline(db),
       delivery: delivery(db),
       variance: variance(db),
+      accuracy: countAccuracy(db),
     });
   }));
 

@@ -1270,21 +1270,29 @@ Rev. 2 - 02/26`,
     const location = pick([locations['RM-A'], locations['RM-B'], locations['PK-A']]);
     const scope = pickN(lots.filter((l) => l.locationId === location.id), 8);
     const status = ['closed', 'counting', 'scheduled'][i];
+    const countLines = scope.map((lot) => {
+      const counted = status === 'scheduled' ? null : Number((lot.qtyOnHand * money(0.97, 1.03, 4)).toFixed(2));
+      return {
+        lotId: lot.id, lotNumber: lot.lotNumber, itemId: lot.itemId, uom: lot.uom, unitCost: lot.unitCost || 0,
+        expectedQty: lot.qtyOnHand, countedQty: counted,
+        variance: counted === null ? null : Number((counted - lot.qtyOnHand).toFixed(2)),
+        countedBy: counted === null ? '' : userFor('warehouse').id,
+        countedAt: counted === null ? null : daysAgo(int(1, 12)),
+        recount: false, note: '',
+        ...(status === 'closed' ? { posted: true, postedDelta: Number((counted - lot.qtyOnHand).toFixed(2)) } : {}),
+      };
+    });
     db.insert('cycleCounts', {
       countNumber: db.nextSequence('COUNT', 'CC-{yyyy}-{n:3}'),
       locationId: location.id,
+      scope: 'location', itemIds: [], blind: true, tolerancePct: 2,
       status,
       scheduledFor: dateOnly(i === 2 ? int(3, 14) : -int(1, 20)),
-      lines: scope.map((lot) => {
-        const counted = status === 'scheduled' ? null : Number((lot.qtyOnHand * money(0.97, 1.03, 4)).toFixed(2));
-        return {
-          lotId: lot.id, lotNumber: lot.lotNumber, itemId: lot.itemId,
-          expectedQty: lot.qtyOnHand, countedQty: counted,
-          variance: counted === null ? null : Number((counted - lot.qtyOnHand).toFixed(2)),
-          countedBy: counted === null ? '' : userFor('warehouse').id,
-        };
-      }),
+      lines: countLines,
       countedBy: status === 'scheduled' ? '' : userFor('warehouse').id,
+      startedAt: status === 'scheduled' ? null : daysAgo(int(2, 14)),
+      postedValue: status === 'closed' ? Number(countLines.reduce((sum, l) => sum + (l.postedDelta || 0) * l.unitCost, 0).toFixed(2)) : 0,
+      postedLines: status === 'closed' ? countLines.filter((l) => l.postedDelta).length : 0,
       closedBy: status === 'closed' ? byRole('warehouse')[0].id : '',
       closedAt: status === 'closed' ? daysAgo(int(1, 15)) : null,
       notes: '',

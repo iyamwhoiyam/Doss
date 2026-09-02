@@ -6,7 +6,7 @@ import { PageHeader } from '../components/Shell';
 import { Icon } from '../components/Icon';
 import {
   Badge, Card, CardHead, Combo, DataTable, EmptyState, Field, Modal, NumberInput,
-  SearchInput, Section, Select, StatusBadge, Tabs, TextInput, type Column,
+  SearchInput, Select, StatusBadge, Tabs, TextInput, type Column,
 } from '../components/ui';
 import { api, qs, useList } from '../lib/api';
 import { useUi } from '../lib/ui';
@@ -34,17 +34,17 @@ export function Inventory() {
   const queryClient = useQueryClient();
   const [params, setParams] = useSearchParams();
   const { can } = useSession();
-  const { success, error } = useUi();
   const locations = useLocations();
   const items = useItems();
   const vendors = useVendors();
   const users = useUsers();
   useViewing('inventory');
 
-  const [tab, setTab] = useState(params.get('alert') ? 'alerts' : 'positions');
+  const [tab, setTab] = useState(params.get('tab') ?? (params.get('alert') ? 'alerts' : 'positions'));
   const [search, setSearch] = useState('');
   const [type, setType] = useState('');
   const [receiveOpen, setReceiveOpen] = useState(false);
+  const [countOpen, setCountOpen] = useState(false);
 
   const { data: positions, isLoading } = useQuery<PositionsResponse>({
     queryKey: ['inventory', 'positions'],
@@ -132,14 +132,7 @@ export function Inventory() {
     { key: 'when', header: 'When', sortValue: (row) => row.performedAt ?? '', render: (row) => relative(row.performedAt) },
   ];
 
-  const postCount = async (id: string) => {
-    try {
-      await api.post(`/inventory/counts/${id}/post`);
-      queryClient.invalidateQueries({ queryKey: ['inventory'] });
-      queryClient.invalidateQueries({ queryKey: ['collection', 'cycleCounts'] });
-      success('Cycle count posted', 'Variances have been adjusted against the lots.');
-    } catch (err) { error(err); }
-  };
+  const countTone = (status: string) => (status === 'closed' ? 'success' : status === 'counting' ? 'progress' : status === 'review' ? 'warning' : status === 'cancelled' ? 'danger' : 'neutral');
 
   return (
     <div className="page page-wide">
@@ -257,59 +250,46 @@ export function Inventory() {
         )}
 
         {tab === 'counts' && (
-          <div className="grid grid-2">
-            {(counts?.rows ?? []).map((count) => {
-              const variances = count.lines.filter((line) => line.variance !== null && line.variance !== 0);
-              return (
-                <Section
-                  key={count.id}
-                  title={count.countNumber}
-                  subtitle={`${locations.name(count.locationId)} · scheduled ${date(count.scheduledFor)}`}
-                  icon="clipboard"
-                  actions={
-                    <>
-                      <Badge tone={count.status === 'closed' ? 'success' : count.status === 'counting' ? 'progress' : 'neutral'}>{count.status}</Badge>
-                      {count.status !== 'closed' && can('inventory.write') && (
-                        <button type="button" className="btn btn-sm btn-primary" onClick={() => postCount(count.id)}>Post</button>
-                      )}
-                    </>
-                  }
-                >
-                  <div className="row" style={{ marginBottom: 'var(--s-3)' }}>
-                    <Badge tone="neutral">{count.lines.length} lines</Badge>
-                    <Badge tone={variances.length ? 'warning' : 'success'}>{variances.length} variances</Badge>
-                    {count.closedAt && <span className="cell-sub">Closed {relative(count.closedAt)}</span>}
-                  </div>
-                  <div className="table-wrap" style={{ maxHeight: 220 }}>
-                    <table className="data">
-                      <thead><tr><th>Lot</th><th className="num-cell">Expected</th><th className="num-cell">Counted</th><th className="num-cell">Variance</th></tr></thead>
-                      <tbody>
-                        {count.lines.map((line) => (
-                          <tr key={line.lotId}>
-                            <td className="mono">{line.lotNumber}</td>
-                            <td className="num-cell">{qty(line.expectedQty)}</td>
-                            <td className="num-cell">{line.countedQty === null ? '—' : qty(line.countedQty)}</td>
-                            <td className="num-cell">
-                              {line.variance === null ? '—' : (
-                                <span className="tone-text" data-tone={line.variance === 0 ? 'neutral' : line.variance < 0 ? 'danger' : 'success'}>
-                                  {line.variance > 0 ? '+' : ''}{qty(line.variance)}
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </Section>
-              );
-            })}
-            {(counts?.rows ?? []).length === 0 && (
-              <Card><EmptyState icon="clipboard" title="No cycle counts scheduled" body="Counts appear here once the warehouse schedules them." /></Card>
+          <div className="col">
+            {can('inventory.write') && (
+              <div className="row" style={{ justifyContent: 'flex-end' }}>
+                <button type="button" className="btn btn-primary" onClick={() => setCountOpen(true)}><Icon name="plus" size={14} /> Schedule a count</button>
+              </div>
+            )}
+            {(counts?.rows ?? []).length === 0 ? (
+              <Card><EmptyState icon="clipboard" title="No counts yet" body="Schedule a cycle count of a location, a set of items, or the whole warehouse. Counters work the sheet, review flags anything outside tolerance, and posting adjusts the lots with a full audit trail." action={can('inventory.write') ? <button type="button" className="btn btn-primary" onClick={() => setCountOpen(true)}><Icon name="plus" size={14} /> Schedule a count</button> : undefined} /></Card>
+            ) : (
+              <Card>
+                <DataTable
+                  columns={[
+                    { key: 'count', header: 'Count', sortValue: (c) => c.countNumber, render: (c) => <span className="mono">{c.countNumber}</span> },
+                    { key: 'scope', header: 'Scope', sortValue: (c) => c.scope ?? 'location', render: (c) => (c.scope === 'all' ? 'Whole warehouse' : c.scope === 'items' ? `${c.itemIds?.length ?? 0} items` : locations.name(c.locationId)) },
+                    { key: 'status', header: 'Status', sortValue: (c) => c.status, render: (c) => <Badge tone={countTone(c.status)}>{c.status}</Badge> },
+                    { key: 'when', header: 'Scheduled', sortValue: (c) => c.scheduledFor ?? '', render: (c) => date(c.scheduledFor) },
+                    { key: 'lines', header: 'Lots', numeric: true, sortValue: (c) => c.lines.length, render: (c) => `${c.lines.filter((l) => l.countedQty !== null && l.countedQty !== undefined).length}/${c.lines.length}` },
+                    { key: 'var', header: 'Variances', numeric: true, sortValue: (c) => c.lines.filter((l) => l.variance).length, render: (c) => {
+                      const n = c.lines.filter((l) => l.variance !== null && l.variance !== 0).length;
+                      return <span className="tone-text" data-tone={n ? 'warning' : 'success'}>{n}</span>;
+                    } },
+                    { key: 'value', header: 'Net adjustment', numeric: true, sortValue: (c) => c.postedValue ?? 0, render: (c) => (c.status === 'closed' ? <span className="tone-text" data-tone={(c.postedValue ?? 0) < 0 ? 'danger' : 'success'}>{(c.postedValue ?? 0) < 0 ? '−' : '+'}{money(Math.abs(c.postedValue ?? 0), 2)}</span> : <span className="faint">—</span>) },
+                    { key: 'by', header: 'Counted by', render: (c) => users.name(c.countedBy) },
+                  ] as Column<CycleCount>[]}
+                  rows={counts?.rows ?? []}
+                  onRowClick={(c) => navigate(`/inventory/counts/${c.id}`)}
+                />
+              </Card>
             )}
           </div>
         )}
       </div>
+
+      <ScheduleCount
+        open={countOpen}
+        onClose={() => setCountOpen(false)}
+        itemOptions={items.options}
+        locationOptions={locations.options}
+        onCreated={(id) => { setCountOpen(false); queryClient.invalidateQueries({ queryKey: ['collection', 'cycleCounts'] }); navigate(`/inventory/counts/${id}`); }}
+      />
 
       <ReceiveStock
         open={receiveOpen}
@@ -394,6 +374,84 @@ function ReceiveStock({ open, onClose, onDone, itemOptions, locationOptions, ven
           <input type="checkbox" checked={coaReceived} onChange={(event) => setCoaReceived(event.target.checked)} />
           The certificate of analysis is on file for this lot
         </label>
+      </div>
+    </Modal>
+  );
+}
+
+function ScheduleCount({ open, onClose, onCreated, itemOptions, locationOptions }: {
+  open: boolean; onClose: () => void; onCreated: (id: string) => void;
+  itemOptions: { value: string; label: string; sub?: string }[];
+  locationOptions: { value: string; label: string; sub?: string }[];
+}) {
+  const { error, success } = useUi();
+  const [scope, setScope] = useState<'location' | 'items' | 'all'>('location');
+  const [locationId, setLocationId] = useState('');
+  const [itemIds, setItemIds] = useState<string[]>([]);
+  const [itemPick, setItemPick] = useState('');
+  const [scheduledFor, setScheduledFor] = useState(new Date().toISOString().slice(0, 10));
+  const [blind, setBlind] = useState(true);
+  const [tolerancePct, setTolerancePct] = useState(2);
+  const [notes, setNotes] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    setBusy(true);
+    try {
+      const created = await api.post<CycleCount>('/inventory/counts', { scope, locationId, itemIds, scheduledFor: `${scheduledFor}T08:00:00.000Z`, blind, tolerancePct, notes });
+      success(`${created.countNumber} scheduled`, `${created.lines.length} lots to count`);
+      onCreated(created.id);
+    } catch (err) { error(err); } finally { setBusy(false); }
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Schedule a cycle count"
+      footer={(
+        <>
+          <button type="button" className="btn" onClick={onClose}>Cancel</button>
+          <button type="button" className="btn btn-primary" onClick={submit} disabled={busy || (scope === 'location' && !locationId) || (scope === 'items' && !itemIds.length)}>
+            <Icon name="clipboard" size={14} /> Create count sheet
+          </button>
+        </>
+      )}
+    >
+      <div className="col">
+        <Field label="What to count">
+          <Select value={scope} onChange={(v) => setScope(v as 'location' | 'items' | 'all')} options={[
+            { value: 'location', label: 'One location' },
+            { value: 'items', label: 'Selected items, wherever they are' },
+            { value: 'all', label: 'Everything on hand (physical inventory)' },
+          ]} />
+        </Field>
+        {scope === 'location' && (
+          <Field label="Location"><Combo value={locationId} onChange={setLocationId} options={locationOptions} placeholder="Pick a location" /></Field>
+        )}
+        {scope === 'items' && (
+          <Field label="Items" hint={itemIds.length ? `${itemIds.length} selected` : 'Add items one at a time'}>
+            <div className="col-tight">
+              <Combo value={itemPick} onChange={(v) => { if (v && !itemIds.includes(v)) setItemIds([...itemIds, v]); setItemPick(''); }} options={itemOptions.filter((o) => !itemIds.includes(o.value))} placeholder="Add an item" />
+              <div className="row" style={{ flexWrap: 'wrap', gap: 6 }}>
+                {itemIds.map((id) => (
+                  <Badge key={id} tone="neutral">{itemOptions.find((o) => o.value === id)?.label ?? id} <button type="button" className="btn btn-sm btn-ghost" onClick={() => setItemIds(itemIds.filter((x) => x !== id))} aria-label="Remove">×</button></Badge>
+                ))}
+              </div>
+            </div>
+          </Field>
+        )}
+        <div className="field-row">
+          <Field label="Count date"><TextInput type="date" value={scheduledFor} onChange={setScheduledFor} /></Field>
+          <Field label="Tolerance %" hint="Lines further out than this must be recounted or explicitly accepted.">
+            <NumberInput value={tolerancePct} onChange={setTolerancePct} min={0} max={100} />
+          </Field>
+        </div>
+        <label className="row-tight" style={{ cursor: 'pointer' }}>
+          <input type="checkbox" checked={blind} onChange={(e) => setBlind(e.target.checked)} />
+          <span>Blind count — counters do not see the book quantity until the sheet is in review</span>
+        </label>
+        <Field label="Notes"><TextInput value={notes} onChange={setNotes} placeholder="Quarter-end physical, rack A only…" /></Field>
       </div>
     </Modal>
   );
