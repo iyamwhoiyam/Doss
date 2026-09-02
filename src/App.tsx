@@ -1,4 +1,6 @@
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, useEffect } from 'react';
+
+import { page, preloadAllRoutes } from './lib/routes';
 import { Navigate, Route, Routes } from 'react-router-dom';
 
 import { Shell } from './components/Shell';
@@ -6,37 +8,37 @@ import { Loading } from './components/ui';
 import { useSession } from './lib/session';
 import { Login } from './pages/Login';
 
-const Dashboard = lazy(() => import('./pages/Dashboard').then((m) => ({ default: m.Dashboard })));
-const MyWork = lazy(() => import('./pages/MyWork').then((m) => ({ default: m.MyWork })));
-const Reports = lazy(() => import('./pages/Reports').then((m) => ({ default: m.Reports })));
-const Activity = lazy(() => import('./pages/Activity').then((m) => ({ default: m.Activity })));
-const Production = lazy(() => import('./pages/Production').then((m) => ({ default: m.Production })));
-const Schedule = lazy(() => import('./pages/Schedule').then((m) => ({ default: m.Schedule })));
-const Planning = lazy(() => import('./pages/Planning').then((m) => ({ default: m.Planning })));
-const Routings = lazy(() => import('./pages/Routings').then((m) => ({ default: m.Routings })));
-const WorkOrderDetail = lazy(() => import('./pages/WorkOrderDetail').then((m) => ({ default: m.WorkOrderDetail })));
-const Inventory = lazy(() => import('./pages/Inventory').then((m) => ({ default: m.Inventory })));
-const ItemDetail = lazy(() => import('./pages/ItemDetail').then((m) => ({ default: m.ItemDetail })));
-const CountSheet = lazy(() => import('./pages/CountSheet').then((m) => ({ default: m.CountSheet })));
-const Purchasing = lazy(() => import('./pages/Purchasing').then((m) => ({ default: m.Purchasing })));
-const VendorDetail = lazy(() => import('./pages/VendorDetail').then((m) => ({ default: m.VendorDetail })));
-const PurchaseOrderDetail = lazy(() => import('./pages/PurchaseOrderDetail').then((m) => ({ default: m.PurchaseOrderDetail })));
-const Development = lazy(() => import('./pages/Development').then((m) => ({ default: m.Development })));
-const ProjectDetail = lazy(() => import('./pages/ProjectDetail').then((m) => ({ default: m.ProjectDetail })));
-const Formulations = lazy(() => import('./pages/Formulations').then((m) => ({ default: m.Formulations })));
-const FormulaBuilder = lazy(() => import('./pages/FormulaBuilder').then((m) => ({ default: m.FormulaBuilder })));
-const Quotes = lazy(() => import('./pages/Quotes').then((m) => ({ default: m.Quotes })));
-const QuoteBuilder = lazy(() => import('./pages/QuoteBuilder').then((m) => ({ default: m.QuoteBuilder })));
-const Labels = lazy(() => import('./pages/Labels').then((m) => ({ default: m.Labels })));
-const Samples = lazy(() => import('./pages/Samples').then((m) => ({ default: m.Samples })));
-const LabelReviewPage = lazy(() => import('./pages/LabelReviewPage').then((m) => ({ default: m.LabelReviewPage })));
-const Rfqs = lazy(() => import('./pages/Rfqs').then((m) => ({ default: m.Rfqs })));
-const Customers = lazy(() => import('./pages/Customers').then((m) => ({ default: m.Customers })));
-const CustomerDetail = lazy(() => import('./pages/CustomerDetail').then((m) => ({ default: m.CustomerDetail })));
-const Documents = lazy(() => import('./pages/Documents').then((m) => ({ default: m.Documents })));
-const Orders = lazy(() => import('./pages/Orders').then((m) => ({ default: m.Orders })));
-const OrderDetail = lazy(() => import('./pages/OrderDetail').then((m) => ({ default: m.OrderDetail })));
-const Admin = lazy(() => import('./pages/Admin').then((m) => ({ default: m.Admin })));
+const Dashboard = page('/', (m) => m.Dashboard as typeof import('./pages/Dashboard').Dashboard);
+const MyWork = page('/my-work', (m) => m.MyWork as typeof import('./pages/MyWork').MyWork);
+const Reports = page('/reports', (m) => m.Reports as typeof import('./pages/Reports').Reports);
+const Activity = page('/activity', (m) => m.Activity as typeof import('./pages/Activity').Activity);
+const Production = page('/production', (m) => m.Production as typeof import('./pages/Production').Production);
+const Schedule = page('/schedule', (m) => m.Schedule as typeof import('./pages/Schedule').Schedule);
+const Planning = page('/planning', (m) => m.Planning as typeof import('./pages/Planning').Planning);
+const Routings = page('/routings', (m) => m.Routings as typeof import('./pages/Routings').Routings);
+const WorkOrderDetail = page('/production/:id', (m) => m.WorkOrderDetail as typeof import('./pages/WorkOrderDetail').WorkOrderDetail);
+const Inventory = page('/inventory', (m) => m.Inventory as typeof import('./pages/Inventory').Inventory);
+const ItemDetail = page('/inventory/:id', (m) => m.ItemDetail as typeof import('./pages/ItemDetail').ItemDetail);
+const CountSheet = page('/inventory/counts/:id', (m) => m.CountSheet as typeof import('./pages/CountSheet').CountSheet);
+const Purchasing = page('/purchasing', (m) => m.Purchasing as typeof import('./pages/Purchasing').Purchasing);
+const VendorDetail = page('/purchasing/vendors/:id', (m) => m.VendorDetail as typeof import('./pages/VendorDetail').VendorDetail);
+const PurchaseOrderDetail = page('/purchasing/:id', (m) => m.PurchaseOrderDetail as typeof import('./pages/PurchaseOrderDetail').PurchaseOrderDetail);
+const Development = page('/development', (m) => m.Development as typeof import('./pages/Development').Development);
+const ProjectDetail = page('/development/:id', (m) => m.ProjectDetail as typeof import('./pages/ProjectDetail').ProjectDetail);
+const Formulations = page('/formulations', (m) => m.Formulations as typeof import('./pages/Formulations').Formulations);
+const FormulaBuilder = page('/formulations/:id', (m) => m.FormulaBuilder as typeof import('./pages/FormulaBuilder').FormulaBuilder);
+const Quotes = page('/quotes', (m) => m.Quotes as typeof import('./pages/Quotes').Quotes);
+const QuoteBuilder = page('/quotes/:id', (m) => m.QuoteBuilder as typeof import('./pages/QuoteBuilder').QuoteBuilder);
+const Labels = page('/labels', (m) => m.Labels as typeof import('./pages/Labels').Labels);
+const Samples = page('/samples', (m) => m.Samples as typeof import('./pages/Samples').Samples);
+const LabelReviewPage = page('/labels/:id', (m) => m.LabelReviewPage as typeof import('./pages/LabelReviewPage').LabelReviewPage);
+const Rfqs = page('/rfqs', (m) => m.Rfqs as typeof import('./pages/Rfqs').Rfqs);
+const Customers = page('/customers', (m) => m.Customers as typeof import('./pages/Customers').Customers);
+const CustomerDetail = page('/customers/:id', (m) => m.CustomerDetail as typeof import('./pages/CustomerDetail').CustomerDetail);
+const Documents = page('/documents', (m) => m.Documents as typeof import('./pages/Documents').Documents);
+const Orders = page('/orders', (m) => m.Orders as typeof import('./pages/Orders').Orders);
+const OrderDetail = page('/orders/:id', (m) => m.OrderDetail as typeof import('./pages/OrderDetail').OrderDetail);
+const Admin = page('/admin', (m) => m.Admin as typeof import('./pages/Admin').Admin);
 const ApprovalPage = lazy(() => import('./pages/ApprovalPage').then((m) => ({ default: m.ApprovalPage })));
 const PrintDoc = lazy(() => import('./pages/PrintDoc').then((m) => ({ default: m.PrintDoc })));
 
@@ -73,6 +75,8 @@ function PrintRoute() {
 }
 
 function AuthedApp() {
+  // Warm every page's code once the shell is up, so page switches never wait on a download.
+  useEffect(() => { preloadAllRoutes(); }, []);
   const { user, loading } = useSession();
 
   if (loading) return <Booting />;

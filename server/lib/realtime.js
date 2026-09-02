@@ -102,8 +102,10 @@ export class RealtimeHub {
   setViewing(clientId, viewing) {
     const client = this.clients.get(clientId);
     if (!client) return false;
-    client.viewing = viewing ?? null;
+    const next = viewing ?? null;
     client.lastSeen = Date.now();
+    if (client.viewing === next) return true; // nothing changed: nobody needs telling
+    client.viewing = next;
     this.broadcastPresence();
     return true;
   }

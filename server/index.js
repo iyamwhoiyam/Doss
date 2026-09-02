@@ -162,8 +162,15 @@ export function createServer({ dataDir = DATA_DIR, autoSeed = true } = {}) {
   // ── the built client, in production ──────────────────────────────────────
   const dist = path.join(ROOT, 'dist');
   if (fs.existsSync(dist)) {
+    // Vite names every asset by its content hash, so those can be cached for a
+    // year; the HTML shell that points at them must always be revalidated, or a
+    // browser keeps running an old build after a deploy.
+    app.use('/assets', express.static(path.join(dist, 'assets'), { index: false, maxAge: '365d', immutable: true }));
     app.use(express.static(dist, { index: false, maxAge: '1h' }));
-    app.get('*', (_req, res) => res.sendFile(path.join(dist, 'index.html')));
+    app.get('*', (_req, res) => {
+      res.setHeader('Cache-Control', 'no-cache');
+      res.sendFile(path.join(dist, 'index.html'));
+    });
   } else {
     app.get('/', (_req, res) => {
       res.status(200).type('text/plain').send(

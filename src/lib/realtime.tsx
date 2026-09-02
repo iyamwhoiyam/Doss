@@ -11,7 +11,7 @@
  * one refetch each, not three rounds of re-rendering.
  */
 
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { useSession } from './session';
@@ -149,20 +149,33 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
     };
   }, [user, queryClient]);
 
-  const value = useMemo<RealtimeValue>(() => ({
-    status,
-    online,
-    lastChange,
-    setViewing: (viewing) => {
-      if (!clientId.current) return;
-      void fetch('/api/presence/viewing', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({ clientId: clientId.current, viewing }),
-      }).catch(() => { /* presence is best-effort */ });
-    },
-  }), [status, online, lastChange]);
+  // What this tab says it is looking at. Sent once per change — never on every
+  // render, and never re-sent when the presence broadcast it caused comes back.
+  const wanted = useRef<string | null>(null);
+  const sent = useRef<string | null | undefined>(undefined);
+  const pushViewing = useCallback(() => {
+    if (!clientId.current || sent.current === wanted.current) return;
+    sent.current = wanted.current;
+    void fetch('/api/presence/viewing', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ clientId: clientId.current, viewing: wanted.current }),
+    }).catch(() => { sent.current = undefined; /* presence is best-effort */ });
+  }, []);
+  // Page switches call this twice back to back (the old page clears, the new
+  // one sets); a microtask lets the two collapse into a single request.
+  const scheduled = useRef(false);
+  const setViewing = useCallback((viewing: string | null) => {
+    wanted.current = viewing;
+    if (scheduled.current) return;
+    scheduled.current = true;
+    queueMicrotask(() => { scheduled.current = false; pushViewing(); });
+  }, [pushViewing]);
+  // The stream's hello hands us a client id; anything requested before that is sent then.
+  useEffect(() => { if (status === 'live') { sent.current = undefined; pushViewing(); } }, [status, pushViewing]);
+
+  const value = useMemo<RealtimeValue>(() => ({ status, online, lastChange, setViewing }), [status, online, lastChange, setViewing]);
 
   return <RealtimeContext.Provider value={value}>{children}</RealtimeContext.Provider>;
 }

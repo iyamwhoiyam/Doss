@@ -2,6 +2,7 @@ import type { MouseEvent, ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 
 import { Icon } from './Icon';
+import { preloadRoute } from '../lib/routes';
 
 /**
  * The one way a project is referenced anywhere in the app: a link that opens
@@ -21,6 +22,7 @@ export function ProjectLink({ id, code, name, children, className = '', title = 
       onClick={stop}
       onPointerDown={(e) => e.stopPropagation()}
       onMouseDown={stop}
+      onPointerEnter={() => { void preloadRoute(`/development/${id}`); }}
     >
       {children ?? (
         <>

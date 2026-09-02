@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { PageHeader } from '../components/Shell';
 import { ProjectEditor, type ProjectSection } from '../components/ProjectEditor';
@@ -9,7 +9,7 @@ import {
   Avatar, AvatarStack, Badge, Card, CardHead, CopyButton, Field, Flag, KeyValue, Loading, Meter,
   Modal, NumberInput, Section, Select, StatusBadge, Tabs, TextArea, TextInput, Toggle,
 } from '../components/ui';
-import { api, useList, useRecord } from '../lib/api';
+import { api, useRecord, type ListResult } from '../lib/api';
 import { useUi } from '../lib/ui';
 import { useSession } from '../lib/session';
 import { useViewing } from '../lib/realtime';
@@ -33,13 +33,17 @@ export function ProjectDetail() {
   const { data: project, isLoading } = useRecord<Project>('projects', id);
   useViewing(project ? project.code : null);
 
-  const { data: formulas } = useList<Formula>('formulas', { where: { projectId: id ?? '' } }, { enabled: Boolean(id) });
-  const { data: quotes } = useList<Quote>('quotes', { where: { projectId: id ?? '' } }, { enabled: Boolean(id) });
-  const { data: labels } = useList<LabelReview>('labelReviews', { where: { projectId: id ?? '' } }, { enabled: Boolean(id) });
-  // Production and samples hang off the project's formula / the project itself.
-  const { data: workOrders } = useList<WorkOrder>('workOrders', { where: { formulaId: project?.formulaId ?? '__none__' }, sort: '-createdAt' }, { enabled: Boolean(project?.formulaId) });
-  const { data: samples } = useList<Sample>('samples', { where: { projectId: id ?? '' }, sort: '-createdAt' }, { enabled: Boolean(id) });
-  const { data: tasks } = useList<Task>('tasks', { where: { refId: id ?? '' }, sort: 'boardOrder' }, { enabled: Boolean(id) });
+  // Everything linked to the project arrives in one request.
+  const { data: related } = useQuery<{
+    formulas: ListResult<Formula>; quotes: ListResult<Quote>; labelReviews: ListResult<LabelReview>;
+    workOrders: ListResult<WorkOrder>; samples: ListResult<Sample>; tasks: ListResult<Task>;
+  }>({ queryKey: ['projects', 'related', id], queryFn: () => api.get(`/projects/${id}/related`), enabled: Boolean(id) });
+  const formulas = related?.formulas;
+  const quotes = related?.quotes;
+  const labels = related?.labelReviews;
+  const workOrders = related?.workOrders;
+  const samples = related?.samples;
+  const tasks = related?.tasks;
 
   // A customer-approved product is frozen: the UI disables editing to match the
   // server, which refuses the writes anyway.
@@ -50,6 +54,7 @@ export function ProjectDetail() {
       await api.patch(`/data/projects/${id}`, body);
       queryClient.invalidateQueries({ queryKey: ['record', 'projects', id] });
       queryClient.invalidateQueries({ queryKey: ['collection', 'projects'] });
+      queryClient.invalidateQueries({ queryKey: ['projects', 'related', id] });
     } catch (err) { error(err); }
   };
 

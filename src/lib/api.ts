@@ -5,7 +5,7 @@
  * "your session expired" path are decided in exactly one place.
  */
 
-import { useMutation, useQuery, useQueryClient, type UseQueryOptions } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient, type UseQueryOptions } from '@tanstack/react-query';
 
 const NETWORK_MESSAGE = 'Could not reach the Enova Ops server. Check the connection (VPN, proxy or Wi-Fi) and try again; if it keeps happening, the server may be down.';
 
@@ -124,15 +124,34 @@ export function useList<T = Record<string, unknown>>(
   });
 }
 
+/**
+ * A record we already have in some cached list — the board, a table, a lookup.
+ * Lets a detail page paint immediately from what was just on screen while the
+ * fresh copy loads behind it.
+ */
+export function cachedRecord<T>(queryClient: QueryClient, collection: string, id: string | undefined): T | undefined {
+  if (!id) return undefined;
+  const direct = queryClient.getQueryData<T>(['record', collection, id]);
+  if (direct) return direct;
+  for (const query of queryClient.getQueryCache().findAll({ queryKey: ['collection', collection] })) {
+    const rows = (query.state.data as { rows?: { id?: string }[] } | undefined)?.rows;
+    const hit = rows?.find((row) => row.id === id);
+    if (hit) return hit as T;
+  }
+  return undefined;
+}
+
 export function useRecord<T = Record<string, unknown>>(
   collection: string,
   id: string | undefined,
   options: Partial<UseQueryOptions<T>> = {},
 ) {
+  const queryClient = useQueryClient();
   return useQuery<T>({
     queryKey: ['record', collection, id],
     queryFn: () => api.get<T>(`/data/${collection}/${id}`),
     enabled: Boolean(id),
+    placeholderData: (() => cachedRecord<T>(queryClient, collection, id)) as UseQueryOptions<T>['placeholderData'],
     ...options,
   });
 }

@@ -38,6 +38,27 @@ export function projectsRouter(db) {
   const router = Router();
 
   /** Send the product to the customer for sign-off, minting the approval link. */
+  /**
+   * Everything the project page shows besides the project itself, in one
+   * round trip: the formulas, quotes, label reviews, batches, samples and
+   * tasks that hang off it. One request instead of seven.
+   */
+  router.get('/:id/related', route((req, res) => {
+    const project = db.getOrFail('projects', req.params.id);
+    const list = (collection, where, sort) => {
+      const rows = db.find(collection, where, sort ? { sort } : undefined);
+      return { rows, total: rows.length };
+    };
+    res.json({
+      formulas: list('formulas', { projectId: project.id }),
+      quotes: list('quotes', { projectId: project.id }),
+      labelReviews: list('labelReviews', { projectId: project.id }),
+      workOrders: project.formulaId ? list('workOrders', { formulaId: project.formulaId }, '-createdAt') : { rows: [], total: 0 },
+      samples: list('samples', { projectId: project.id }, '-createdAt'),
+      tasks: list('tasks', { refId: project.id }, 'boardOrder'),
+    });
+  }));
+
   router.post('/:id/request-approval', requirePermission('product.lock'), route((req, res) => {
     const project = db.getOrFail('projects', req.params.id);
     if (project.lockState === 'locked') throw new HttpError(409, 'This product is already customer-approved. Open a revision to change it first.');

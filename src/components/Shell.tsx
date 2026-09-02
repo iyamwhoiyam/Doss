@@ -11,6 +11,7 @@ import { Icon } from './Icon';
 import { CommandPalette } from './CommandPalette';
 import { Avatar } from './ui';
 import { NAV } from '@shared/domain';
+import { preloadRoute } from '../lib/routes';
 import { useSession } from '../lib/session';
 import { useRealtime } from '../lib/realtime';
 import { useList, api } from '../lib/api';
@@ -232,6 +233,8 @@ export function Shell({ children }: { children?: ReactNode }) {
                   end={item.to === '/'}
                   className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
                   title={item.label}
+                  onPointerEnter={() => { void preloadRoute(item.to); }}
+                  onFocus={() => { void preloadRoute(item.to); }}
                 >
                   <Icon name={item.icon} size={16} />
                   <span className="truncate">{item.label}</span>
