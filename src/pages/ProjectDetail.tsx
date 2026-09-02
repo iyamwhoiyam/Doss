@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { PageHeader } from '../components/Shell';
+import { ProjectEditor, type ProjectSection } from '../components/ProjectEditor';
 import { Icon } from '../components/Icon';
 import {
   Avatar, AvatarStack, Badge, Card, CardHead, CopyButton, Field, Flag, KeyValue, Loading, Meter,
@@ -27,6 +28,7 @@ export function ProjectDetail() {
   const users = useUsers();
   const [tab, setTab] = useState('plan');
   const [batchOpen, setBatchOpen] = useState(false);
+  const [editSection, setEditSection] = useState<ProjectSection | null>(null);
 
   const { data: project, isLoading } = useRecord<Project>('projects', id);
   useViewing(project ? project.code : null);
@@ -102,6 +104,7 @@ export function ProjectDetail() {
         actions={
           writable && (
             <>
+              <button type="button" className="btn" onClick={() => setEditSection('details')}><Icon name="edit" size={14} /> Edit project</button>
               <Select
                 value={project.health}
                 onChange={(value) => patch({ health: value })}
@@ -125,6 +128,14 @@ export function ProjectDetail() {
           queryClient.invalidateQueries({ queryKey: ['record', 'projects', id] });
           queryClient.invalidateQueries({ queryKey: ['collection', 'projects'] });
         }}
+      />
+
+      <ProjectEditor
+        open={editSection != null}
+        project={project}
+        section={editSection ?? 'details'}
+        onClose={() => setEditSection(null)}
+        onSave={async (body) => { await patch(body); success('Project saved'); }}
       />
 
       <StartBatchModal
@@ -173,7 +184,7 @@ export function ProjectDetail() {
                     title="Milestones"
                     subtitle={`${doneMilestones} of ${project.milestones.length} complete`}
                     icon="target"
-                    actions={<div style={{ width: 120 }}><Meter value={doneMilestones} max={Math.max(1, project.milestones.length)} /></div>}
+                    actions={<div className="row-tight"><div style={{ width: 120 }}><Meter value={doneMilestones} max={Math.max(1, project.milestones.length)} /></div>{writable && <button type="button" className="btn btn-sm btn-ghost" onClick={() => setEditSection('milestones')}><Icon name="edit" size={12} /> Edit</button>}</div>}
                   />
                   <div className="card-body">
                     <div className="stepper">
@@ -196,7 +207,7 @@ export function ProjectDetail() {
                 </Card>
 
                 <Card>
-                  <CardHead title="Stage gates" subtitle="A gate is signed before the project leaves its stage" icon="shield" />
+                  <CardHead title="Stage gates" subtitle="A gate is signed before the project leaves its stage" icon="shield" actions={writable ? <button type="button" className="btn btn-sm btn-ghost" onClick={() => setEditSection('gates')}><Icon name="edit" size={12} /> Edit</button> : undefined} />
                   <div className="card-body-flush">
                     {project.gateChecks.map((gate, index) => (
                       <div key={`${gate.gate}-${gate.label}`} className="list-row">
@@ -209,9 +220,9 @@ export function ProjectDetail() {
                   </div>
                 </Card>
 
-                {project.requirements.length > 0 && (
+                {(project.requirements.length > 0 || writable) && (
                   <Card>
-                    <CardHead title="Customer requirements" icon="clipboard" />
+                    <CardHead title="Customer requirements" icon="clipboard" actions={writable ? <button type="button" className="btn btn-sm btn-ghost" onClick={() => setEditSection('requirements')}><Icon name="edit" size={12} /> {project.requirements.length ? 'Edit' : 'Add'}</button> : undefined} />
                     <div className="card-body-flush">
                       {project.requirements.map((requirement, index) => (
                         <div key={requirement.label} className="list-row">
@@ -220,12 +231,13 @@ export function ProjectDetail() {
                           <Toggle checked={requirement.met} disabled={!writable} onChange={() => toggleRequirement(index)} />
                         </div>
                       ))}
+                      {project.requirements.length === 0 && <div className="cell-sub" style={{ padding: 'var(--s-4)' }}>No customer requirements captured yet.</div>}
                     </div>
                   </Card>
                 )}
 
-                {project.risks.length > 0 && (
-                  <Section title="Risks" icon="alert">
+                {(project.risks.length > 0 || writable) && (
+                  <Section title="Risks" icon="alert" actions={writable ? <button type="button" className="btn btn-sm btn-ghost" onClick={() => setEditSection('risks')}><Icon name="edit" size={12} /> {project.risks.length ? 'Edit' : 'Add'}</button> : undefined}>
                     <div className="col-tight">
                       {project.risks.map((risk) => (
                         <div key={risk.label} className="row">
@@ -234,6 +246,7 @@ export function ProjectDetail() {
                           {risk.owner && <span className="cell-sub">{users.name(risk.owner)}</span>}
                         </div>
                       ))}
+                      {project.risks.length === 0 && <div className="cell-sub">No risks logged.</div>}
                     </div>
                   </Section>
                 )}
@@ -346,12 +359,12 @@ export function ProjectDetail() {
                 <CardHead title="Tasks on this project" icon="check" />
                 <div className="card-body-flush">
                   {(tasks?.rows ?? []).map((task) => (
-                    <div key={task.id} className="list-row">
+                    <Link key={task.id} to="/my-work" className="list-row">
                       <Badge tone={task.status === 'done' ? 'success' : task.status === 'blocked' ? 'danger' : 'neutral'}>{task.status}</Badge>
                       <span className="grow truncate">{task.title}</span>
                       <Avatar name={users.name(task.assigneeId)} size="sm" />
                       <span className="cell-sub nowrap">{task.dueDate ? relative(task.dueDate) : '—'}</span>
-                    </div>
+                    </Link>
                   ))}
                   {(tasks?.rows ?? []).length === 0 && <div className="cell-sub" style={{ padding: 'var(--s-4)' }}>No tasks linked to this project.</div>}
                 </div>
@@ -361,7 +374,7 @@ export function ProjectDetail() {
         </div>
 
         <div className="col">
-          <Section title="Project" icon="flask">
+          <Section title="Project" icon="flask" actions={writable ? <button type="button" className="btn btn-sm btn-ghost" onClick={() => setEditSection('details')}><Icon name="edit" size={12} /> Edit</button> : undefined}>
             <KeyValue
               items={[
                 { label: 'Customer', value: project.customerId ? <Link to={`/customers/${project.customerId}`}>{customers.name(project.customerId)}</Link> : 'Internal' },

@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
 import { PageHeader } from '../components/Shell';
@@ -22,6 +22,7 @@ function Greeting({ name }: { name: string }) {
 
 export function Dashboard() {
   const { user } = useSession();
+  const navigate = useNavigate();
   const { status } = useRealtime();
   const customers = useCustomers();
   const users = useUsers();
@@ -169,7 +170,7 @@ export function Dashboard() {
             </div>
             {(data.myWork.quotes.length > 0 || data.myWork.labelReviews.length > 0 || data.myWork.projects.length > 0) && (
               <div className="card-foot row-wrap" style={{ gap: 'var(--s-2)' }}>
-                {data.myWork.projects.length > 0 && <Badge tone="accent">{data.myWork.projects.length} projects</Badge>}
+                {data.myWork.projects.length > 0 && <Link to="/my-work"><Badge tone="accent">{data.myWork.projects.length} projects</Badge></Link>}
                 {data.myWork.quotes.length > 0 && <Badge tone="info">{data.myWork.quotes.length} quotes</Badge>}
                 {data.myWork.labelReviews.length > 0 && <Badge tone="warning">{data.myWork.labelReviews.length} label reviews</Badge>}
               </div>
@@ -181,7 +182,7 @@ export function Dashboard() {
             <div className="card-body" style={{ maxHeight: 430, overflowY: 'auto' }}>
               <div className="timeline">
                 {data.activity.map((entry) => (
-                  <div key={entry.id} className="timeline-item">
+                  <div key={entry.id} className="timeline-item" style={entry.link ? { cursor: 'pointer' } : undefined} onClick={() => { if (entry.link) navigate(entry.link); }} role={entry.link ? 'link' : undefined}>
                     <span className="timeline-mark" data-tone={entry.tone}>
                       <Icon name={
                         entry.type === 'work_order' ? 'factory'
@@ -212,10 +213,11 @@ export function Dashboard() {
             actions={<Link to="/development" className="btn btn-sm btn-ghost">Board</Link>}>
             <div className="col-tight">
               {data.pipeline.filter((stage) => stage.count > 0).map((stage) => (
-                <div key={stage.value} className="row">
+                <Link key={stage.value} to={`/development?stage=${stage.value}`} className="row list-row" title={`Open the ${stage.label} projects`}>
                   <Badge tone={stage.tone}>{stage.count}</Badge>
                   <span className="grow truncate" style={{ fontSize: 'var(--t-sm)' }}>{stage.label}</span>
-                </div>
+                  <Icon name="arrow-right" size={12} className="faint" />
+                </Link>
               ))}
               {data.pipeline.every((stage) => stage.count === 0) && <div className="cell-sub">No active projects.</div>}
             </div>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -13,7 +13,8 @@ import { api, useList } from '../lib/api';
 import { useUi } from '../lib/ui';
 import { useSession } from '../lib/session';
 import { useViewing } from '../lib/realtime';
-import { useCustomers, useFormulas, useUsers } from '../lib/lookups';
+import { useCustomers, useFormulas, useProjects, useUsers } from '../lib/lookups';
+import { ProjectLink } from '../components/ProjectLink';
 import { compact, dateShort, number, percent, relative } from '../lib/format';
 import { PRIORITIES, WORK_ORDER_STAGES, findOption } from '@shared/domain';
 import type { WorkOrder } from '../lib/types';
@@ -31,6 +32,8 @@ export function Production() {
   const { can } = useSession();
   const customers = useCustomers();
   const users = useUsers();
+  const projects = useProjects();
+  const projectForWo = (wo: WorkOrder) => projects.rows.find((p) => p.formulaId && p.formulaId === wo.formulaId);
   const formulas = useFormulas();
   useViewing('the production board');
 
@@ -137,7 +140,7 @@ export function Production() {
           items={filtered.map((wo) => ({ ...wo, column: wo.stage, order: wo.boardOrder }))}
           onMove={move}
           disabled={!can('production.write')}
-          renderCard={(wo) => <WorkOrderCard wo={wo} customerName={customers.name(wo.customerId)} supervisor={users.name(wo.supervisorId)} onOpen={() => navigate(`/production/${wo.id}`)} />}
+          renderCard={(wo) => <WorkOrderCard wo={wo} project={projectForWo(wo)} customerName={customers.name(wo.customerId)} supervisor={users.name(wo.supervisorId)} onOpen={() => navigate(`/production/${wo.id}`)} />}
         />
       )}
 
@@ -163,15 +166,25 @@ export function Production() {
   );
 }
 
-function WorkOrderCard({ wo, customerName, supervisor, onOpen }: {
-  wo: WorkOrder; customerName: string; supervisor: string; onOpen: () => void;
+function WorkOrderCard({ wo, customerName, supervisor, onOpen, project }: {
+  wo: WorkOrder; customerName: string; supervisor: string; onOpen: () => void; project?: { id: string; code: string } | null;
 }) {
   const stage = findOption(WORK_ORDER_STAGES, wo.stage);
   const issued = wo.materials.filter((m) => m.issuedQty > 0).length;
   const steps = wo.steps.filter((s) => s.done).length;
+  // A click opens the batch; a drag (pointer moved before release) does not.
+  const pressed = useRef<{ x: number; y: number } | null>(null);
 
   return (
-    <div onDoubleClick={onOpen}>
+    <div
+      style={{ cursor: 'pointer' }}
+      onPointerDown={(e) => { pressed.current = { x: e.clientX, y: e.clientY }; }}
+      onClick={(e) => {
+        const start = pressed.current; pressed.current = null;
+        if (start && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 5) return;
+        onOpen();
+      }}
+    >
       <div className="board-card-accent" data-tone={stage.tone} />
       <div className="row-tight" style={{ marginBottom: 4 }}>
         <span className="mono cell-sub">{wo.woNumber}</span>
@@ -182,6 +195,7 @@ function WorkOrderCard({ wo, customerName, supervisor, onOpen }: {
       <div className="board-card-meta">
         <span className="truncate">{customerName}</span>
         {wo.line && <><span>·</span><span>{wo.line}</span></>}
+        {project && <><span>·</span><ProjectLink id={project.id} code={project.code} /></>}
       </div>
 
       {wo.stage === 'qc_hold' && wo.holdReason && (

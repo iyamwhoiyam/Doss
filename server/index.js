@@ -181,6 +181,17 @@ export function createServer({ dataDir = DATA_DIR, autoSeed = true } = {}) {
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
   const { app, db, hub } = createServer();
+  // A crash anywhere is logged with its stack, so `docker compose logs app`
+  // explains an outage instead of showing a silent restart.
+  process.on('unhandledRejection', (reason) => {
+    console.error('[fatal] unhandled promise rejection', reason instanceof Error ? reason.stack : reason);
+  });
+  process.on('uncaughtException', (err) => {
+    console.error('[fatal] uncaught exception — exiting so the container restarts cleanly', err?.stack ?? err);
+    try { db.checkpoint?.(); } catch { /* best effort */ }
+    process.exit(1);
+  });
+
   const server = app.listen(PORT, () => {
     console.log(`[boot] Enova Ops API on http://127.0.0.1:${PORT}`);
     console.log(`[boot] file-system database at ${db.dir} (${db.stats().totalRecords} records)`);

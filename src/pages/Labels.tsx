@@ -12,7 +12,8 @@ import { api, useList } from '../lib/api';
 import { useUi } from '../lib/ui';
 import { useSession } from '../lib/session';
 import { useViewing } from '../lib/realtime';
-import { useCustomers, useFormulas, useUsers } from '../lib/lookups';
+import { useCustomers, useFormulas, useProjects, useUsers } from '../lib/lookups';
+import { ProjectLink } from '../components/ProjectLink';
 import { date, relative } from '../lib/format';
 import { LABEL_REVIEW_STATUS } from '@shared/domain';
 import type { LabelReview } from '../lib/types';
@@ -31,6 +32,8 @@ export function Labels() {
   const customers = useCustomers();
   const formulas = useFormulas();
   const users = useUsers();
+  const projects = useProjects();
+  const projectFor = (row: LabelReview) => (row.projectId ? projects.byId.get(row.projectId) : undefined) ?? projects.rows.find((p) => row.formulaId && p.formulaId === row.formulaId);
   useViewing('label reviews');
 
   const [search, setSearch] = useState('');
@@ -62,6 +65,7 @@ export function Labels() {
       </div>
     ) },
     { key: 'customer', header: 'Customer', sortValue: (row) => customers.name(row.customerId), render: (row) => customers.name(row.customerId) },
+    { key: 'project', header: 'Project', sortValue: (row) => projectFor(row)?.code ?? '', render: (row) => { const p = projectFor(row); return <ProjectLink id={p?.id} code={p?.code} />; } },
     { key: 'status', header: 'Status', sortValue: (row) => row.status, render: (row) => <StatusBadge list={LABEL_REVIEW_STATUS} value={row.status} /> },
     { key: 'completion', header: 'Checklist', width: '150px', sortValue: (row) => row.metrics?.completionPct ?? 0, render: (row) => (
       <div className="row-tight">

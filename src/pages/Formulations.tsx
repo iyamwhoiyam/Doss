@@ -7,7 +7,8 @@ import { Badge, Card, DataTable, EmptyState, SearchInput, Segmented, Select, Sta
 import { useList } from '../lib/api';
 import { useSession } from '../lib/session';
 import { useViewing } from '../lib/realtime';
-import { useCustomers, useUsers } from '../lib/lookups';
+import { useCustomers, useProjects, useUsers } from '../lib/lookups';
+import { ProjectLink } from '../components/ProjectLink';
 import { date, mg, number, relative } from '../lib/format';
 import { FORMULA_FORMATS, FORMULA_STATUS, findOption } from '@shared/domain';
 import type { Formula } from '../lib/types';
@@ -17,6 +18,8 @@ export function Formulations() {
   const { can } = useSession();
   const customers = useCustomers();
   const users = useUsers();
+  const projects = useProjects();
+  const projectFor = (row: Formula) => (row.projectId ? projects.byId.get(row.projectId) : undefined) ?? projects.rows.find((p) => p.formulaId === row.id);
   useViewing('formulations');
 
   const [search, setSearch] = useState('');
@@ -48,6 +51,7 @@ export function Formulations() {
       <Badge tone="neutral">{findOption(FORMULA_FORMATS, row.format).label}</Badge>
     ) },
     { key: 'customer', header: 'Customer', sortValue: (row) => customers.name(row.customerId), render: (row) => customers.name(row.customerId) },
+    { key: 'project', header: 'Project', sortValue: (row) => projectFor(row)?.code ?? '', render: (row) => { const p = projectFor(row); return <ProjectLink id={p?.id} code={p?.code} />; } },
     { key: 'status', header: 'Status', sortValue: (row) => row.status, render: (row) => <StatusBadge list={FORMULA_STATUS} value={row.status} /> },
     { key: 'actives', header: 'Actives', numeric: true, sortValue: (row) => row.actives.length, render: (row) => row.actives.length },
     { key: 'serving', header: 'Serving', render: (row) => row.servingSize },
@@ -85,12 +89,14 @@ export function Formulations() {
           {formulas.map((formula) => {
             const formatDef = findOption(FORMULA_FORMATS, formula.format);
             return (
-              <button
+              <div
                 key={formula.id}
-                type="button"
+                role="button"
+                tabIndex={0}
                 className="card"
                 style={{ textAlign: 'left', padding: 'var(--s-5)', cursor: 'pointer' }}
                 onClick={() => navigate(`/formulations/${formula.id}`)}
+                onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/formulations/${formula.id}`); }}
               >
                 <div className="row-tight" style={{ marginBottom: 'var(--s-2)' }}>
                   <span className="mono cell-sub">{formula.code}</span>
@@ -98,7 +104,10 @@ export function Formulations() {
                   <StatusBadge list={FORMULA_STATUS} value={formula.status} />
                 </div>
                 <h3 style={{ fontSize: 'var(--t-base)', marginBottom: 4 }} className="truncate">{formula.name}</h3>
-                <div className="cell-sub" style={{ marginBottom: 'var(--s-3)' }}>{customers.name(formula.customerId)}</div>
+                <div className="cell-sub row-tight" style={{ marginBottom: 'var(--s-3)' }}>
+                  <span className="truncate">{customers.name(formula.customerId)}</span>
+                  {(() => { const p = projectFor(formula); return p ? <><span>·</span><ProjectLink id={p.id} code={p.code} /></> : null; })()}
+                </div>
 
                 <div className="row-wrap" style={{ gap: 'var(--s-1)', marginBottom: 'var(--s-3)' }}>
                   <Badge tone="accent">{formatDef.label}</Badge>
@@ -124,7 +133,7 @@ export function Formulations() {
                   <span className="spacer" />
                   <span className="cell-sub">{formula.approvedAt ? `approved ${date(formula.approvedAt)}` : `rev ${formula.revision}`}</span>
                 </div>
-              </button>
+              </div>
             );
           })}
           {formulas.length === 0 && !isLoading && (

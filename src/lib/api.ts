@@ -7,6 +7,8 @@
 
 import { useMutation, useQuery, useQueryClient, type UseQueryOptions } from '@tanstack/react-query';
 
+const NETWORK_MESSAGE = 'Could not reach the Enova Ops server. Check the connection (VPN, proxy or Wi-Fi) and try again; if it keeps happening, the server may be down.';
+
 export class ApiError extends Error {
   status: number;
   details?: { field: string; message: string }[];
@@ -30,7 +32,8 @@ export async function request<T = unknown>(
   const { body, headers, ...rest } = options;
   const isForm = body instanceof FormData;
 
-  const response = await fetch(path.startsWith('/api') ? path : `/api${path}`, {
+  const url = path.startsWith('/api') ? path : `/api${path}`;
+  const init: RequestInit = {
     credentials: 'same-origin',
     ...rest,
     headers: {
@@ -38,9 +41,27 @@ export async function request<T = unknown>(
       ...(headers ?? {}),
     },
     body: body === undefined ? undefined : isForm ? (body as FormData) : JSON.stringify(body),
-  });
+  };
+
+  // A fetch that throws never reached the server: the network dropped, the
+  // request was blocked, or the server is mid-restart. Reads are retried once
+  // after a short pause; everything is reported in plain words rather than the
+  // browser's "Failed to fetch".
+  let response: Response;
+  try {
+    response = await fetch(url, init);
+  } catch (first) {
+    const method = (init.method ?? 'GET').toUpperCase();
+    if (method !== 'GET') throw new ApiError(NETWORK_MESSAGE, 0);
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    try { response = await fetch(url, init); } catch { throw new ApiError(NETWORK_MESSAGE, 0); }
+    void first;
+  }
 
   if (response.status === 204) return undefined as T;
+  if (response.status === 502 || response.status === 503 || response.status === 504) {
+    throw new ApiError('The server is restarting or unreachable behind the proxy. Wait a few seconds and try again.', response.status);
+  }
 
   const contentType = response.headers.get('content-type') ?? '';
   const payload = contentType.includes('json') ? await response.json() : await response.text();

@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useMemo, useRef, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { PageHeader } from '../components/Shell';
 import { Icon } from '../components/Icon';
 import { Board, type MoveRequest } from '../components/Board';
+import { ProjectLink } from '../components/ProjectLink';
 import {
   Avatar, Badge, Combo, DataTable, Field, Meter, Modal, SearchInput, Segmented,
   Select, StatusBadge, TextArea, TextInput, type Column,
@@ -27,7 +28,10 @@ export function Development() {
   const users = useUsers();
   useViewing('the development pipeline');
 
-  const [view, setView] = useState<'board' | 'list'>('board');
+  const [params, setParams] = useSearchParams();
+  // Arriving with ?stage= (from the dashboard pipeline) opens the list filtered to that stage.
+  const stageFilter = params.get('stage') ?? '';
+  const [view, setView] = useState<'board' | 'list'>(stageFilter ? 'list' : 'board');
   const [search, setSearch] = useState('');
   const [owner, setOwner] = useState('');
   const [newOpen, setNewOpen] = useState(false);
@@ -37,11 +41,12 @@ export function Development() {
   const projects = useMemo(() => {
     const needle = search.trim().toLowerCase();
     return (data?.rows ?? []).filter((project) => {
+      if (stageFilter && project.stage !== stageFilter) return false;
       if (owner && project.ownerId !== owner) return false;
       if (!needle) return true;
       return `${project.code} ${project.name} ${customers.name(project.customerId)} ${project.brief}`.toLowerCase().includes(needle);
     });
-  }, [data, search, owner, customers]);
+  }, [data, search, owner, stageFilter, customers]);
 
   const move = async (request: MoveRequest) => {
     const project = projects.find((p) => p.id === request.id);
@@ -82,7 +87,7 @@ export function Development() {
 
   const columns: Column<Project>[] = [
     { key: 'code', header: 'Project', sortValue: (row) => row.code, render: (row) => (
-      <div><div className="cell-primary">{row.name}</div><div className="cell-sub mono">{row.code}</div></div>
+      <div><div className="cell-primary">{row.name}</div><ProjectLink id={row.id} code={row.code} /></div>
     ) },
     { key: 'customer', header: 'Customer', sortValue: (row) => customers.name(row.customerId), render: (row) => customers.name(row.customerId) },
     { key: 'stage', header: 'Stage', sortValue: (row) => row.stage, render: (row) => <StatusBadge list={PROJECT_STAGES} value={row.stage} /> },
@@ -104,6 +109,11 @@ export function Development() {
         subtitle={`${projects.length} projects · drag a project to advance it through the stage gates`}
         actions={
           <>
+            {stageFilter && (
+              <button type="button" className="btn btn-sm" onClick={() => { params.delete('stage'); setParams(params); }}>
+                <Icon name="x" size={12} /> {findOption(PROJECT_STAGES, stageFilter).label} only
+              </button>
+            )}
             <SearchInput value={search} onChange={setSearch} placeholder="Project, customer, brief…" />
             <Combo value={owner} onChange={setOwner} options={users.options} placeholder="All owners" emptyLabel="All owners" />
             <Segmented value={view} onChange={setView} options={[{ value: 'board', label: 'Board' }, { value: 'list', label: 'List' }]} />
@@ -161,11 +171,25 @@ function ProjectCard({ project, customerName, ownerName, onOpen }: {
   const openGates = project.gateChecks.filter((gate) => gate.gate === project.stage && !gate.passed);
   const nextMilestone = project.milestones.find((milestone) => !milestone.done);
 
+  // A click opens the project; a drag (pointer moved before release) does not.
+  const pressed = useRef<{ x: number; y: number } | null>(null);
   return (
-    <div onDoubleClick={onOpen}>
+    <div
+      style={{ position: 'relative', cursor: 'pointer' }}
+      onPointerDown={(e) => { pressed.current = { x: e.clientX, y: e.clientY }; }}
+      onClick={(e) => {
+        const start = pressed.current; pressed.current = null;
+        if (start && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 5) return;
+        onOpen();
+      }}
+      onKeyDown={(e) => { if (e.key === 'Enter') onOpen(); }}
+      role="button"
+      tabIndex={0}
+      aria-label={`Open ${project.code} ${project.name}`}
+    >
       <div className="board-card-accent" data-tone={stage.tone} />
       <div className="row-tight" style={{ marginBottom: 4 }}>
-        <span className="mono cell-sub">{project.code}</span>
+        <ProjectLink id={project.id} code={project.code} />
         <span className="spacer" />
         <StatusBadge list={HEALTH} value={project.health} />
       </div>

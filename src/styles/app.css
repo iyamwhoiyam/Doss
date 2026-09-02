@@ -1104,3 +1104,14 @@ a.list-row:hover { text-decoration: none; }
 .mrp-flow { display: flex; justify-content: flex-end; gap: 6px; font-size: 10px; margin-top: 2px; opacity: 0.85; }
 .mrp-d { color: var(--tone-danger-fg); } .mrp-s { color: var(--tone-success-fg); } .mrp-p { color: var(--tone-info-fg); }
 .mrp-detail td { background: var(--surface-2); padding: var(--s-3) var(--s-4); }
+
+/* A project reference anywhere in the app: always a link that opens it. */
+.project-link {
+  display: inline-flex; align-items: center; gap: 4px; max-width: 100%;
+  color: var(--accent, #2ec4a0); text-decoration: none; font-size: var(--t-sm);
+  padding: 1px 6px; margin: -1px -6px; border-radius: 6px;
+}
+.project-link:hover { background: color-mix(in srgb, var(--accent, #2ec4a0) 14%, transparent); text-decoration: none; }
+.project-link .mono { font-size: var(--t-xs); }
+.board-card-open { position: absolute; top: 8px; right: 8px; opacity: 0; transition: opacity 120ms; }
+.board-card:hover .board-card-open, .board-card:focus-within .board-card-open { opacity: 1; }

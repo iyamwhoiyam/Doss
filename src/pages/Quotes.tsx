@@ -7,7 +7,8 @@ import { Badge, Card, Combo, DataTable, Field, Modal, SearchInput, Select, Statu
 import { useList } from '../lib/api';
 import { useSession } from '../lib/session';
 import { useViewing } from '../lib/realtime';
-import { useCustomers, useFormulas, useUsers } from '../lib/lookups';
+import { useCustomers, useFormulas, useProjects, useUsers } from '../lib/lookups';
+import { ProjectLink } from '../components/ProjectLink';
 import { compact, date, daysUntil, money, relative, unitMoney } from '../lib/format';
 import { QUOTE_STATUS } from '@shared/domain';
 import type { Quote } from '../lib/types';
@@ -23,6 +24,9 @@ export function Quotes() {
   const customers = useCustomers();
   const formulas = useFormulas();
   const users = useUsers();
+  const projects = useProjects();
+  // A quote belongs to a project directly, or through the formula it prices.
+  const projectFor = (row: Quote) => (row.projectId ? projects.byId.get(row.projectId) : undefined) ?? projects.rows.find((p) => p.quoteId === row.id || (row.formulaId && p.formulaId === row.formulaId));
   useViewing('quotes');
 
   const [search, setSearch] = useState('');
@@ -59,6 +63,7 @@ export function Quotes() {
       </div>
     ) },
     { key: 'customer', header: 'Customer', sortValue: (row) => customers.name(row.customerId), render: (row) => customers.name(row.customerId) },
+    { key: 'project', header: 'Project', sortValue: (row) => projectFor(row)?.code ?? '', render: (row) => { const p = projectFor(row); return <ProjectLink id={p?.id} code={p?.code} />; } },
     { key: 'status', header: 'Status', sortValue: (row) => row.status, render: (row) => <StatusBadge list={QUOTE_STATUS} value={row.status} /> },
     { key: 'tiers', header: 'Tiers', numeric: true, sortValue: (row) => row.tiers.length, render: (row) => row.tiers.map((tier) => compact(tier.qty)).join(' / ') },
     { key: 'cogs', header: 'COGS/unit', numeric: true, sortValue: (row) => Number(topTier(row)?.cogsPerUnit ?? 0), render: (row) => {
