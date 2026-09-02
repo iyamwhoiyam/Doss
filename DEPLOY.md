@@ -133,6 +133,20 @@ and Fly.io with a volume work identically) keeps the app exactly as built.
 
 ## Troubleshooting
 
+**Locked out — the admin password does not work.** Nobody can reset it from
+inside the app without signing in, so do it from the Droplet console. This
+stops the app for a few seconds, mints a one-time password, prints it, and
+starts the app again. Sign in with it once and the app asks you to choose your own.
+
+```bash
+cd /opt/enova-ops && docker compose stop app && docker compose run --rm app node server/db/passwd.js --email jbradfield@enovascience.com --temporary; docker compose up -d
+```
+
+To set a specific password instead, replace `--temporary` with
+`--password 'your new passphrase'` (ten characters or more). The same command
+reactivates the account if it had been deactivated.
+
+
 **The page doesn't load.** Give the first build a minute (`docker compose logs -f
 app` shows progress). Check the DigitalOcean **firewall / networking** allows
 inbound 80 and 443 — the setup script opens them in `ufw`, but a cloud firewall

@@ -1013,6 +1013,32 @@ test('a physical count is scheduled, counted blind, reviewed against tolerance, 
   assert.match(csv.split('\n')[0], /Accuracy %,Net adjustment \$/);
 });
 
+test('the passwd CLI helper resets an account with a one-time password and reactivates it', async () => {
+  const { setPassword } = await import('./db/passwd.js');
+  const target = db.find('users').find((u) => u.email !== 'jbradfield@enovascience.com' && u.active);
+  db.update('users', target.id, { active: false });
+
+  const minted = setPassword(db, { email: target.email.toUpperCase() });
+  assert.match(minted.temporary, /^[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}$/);
+  assert.equal(minted.user.active, true, 'the account is reactivated');
+  assert.equal(minted.user.mustChangePassword, true);
+
+  await post('/api/auth/logout');
+  const session = await post('/api/auth/login', { email: target.email, password: minted.temporary });
+  assert.equal(session.user?.id ?? session.id, target.id);
+  assert.equal((session.user ?? session).mustChangePassword, true, 'the app will ask for a new one');
+
+  assert.throws(() => setPassword(db, { email: target.email, password: 'short' }), /at least 10/);
+  assert.throws(() => setPassword(db, { email: 'nobody@enovascience.com' }), /No account/);
+  const chosen = setPassword(db, { email: target.email, password: 'a proper passphrase' });
+  assert.equal(chosen.temporary, null);
+  assert.equal(chosen.user.mustChangePassword, false);
+  await post('/api/auth/logout');
+  await post('/api/auth/login', { email: target.email, password: 'a proper passphrase' });
+  await post('/api/auth/logout');
+  await post('/api/auth/login', { email: 'jbradfield@enovascience.com', password: 'enova2026' });
+});
+
 async function postCsv(url, csv, filename = 'data.csv') {
   const form = new FormData();
   form.append('file', new Blob([csv], { type: 'text/csv' }), filename);
