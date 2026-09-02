@@ -1115,3 +1115,35 @@ a.list-row:hover { text-decoration: none; }
 .project-link .mono { font-size: var(--t-xs); }
 .board-card-open { position: absolute; top: 8px; right: 8px; opacity: 0; transition: opacity 120ms; }
 .board-card:hover .board-card-open, .board-card:focus-within .board-card-open { opacity: 1; }
+
+/* Product journey — request → shipment as one strip, with the next hand-off. */
+.journey { padding: 0; overflow: hidden; }
+.journey-steps { display: flex; align-items: flex-start; padding: var(--s-4) var(--s-4) var(--s-3); overflow-x: auto; gap: 0; }
+.journey-step { position: relative; flex: 1 1 0; min-width: 96px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; }
+.journey-line { position: absolute; top: 15px; right: 50%; width: 100%; height: 2px; background: var(--line-soft); z-index: 0; }
+.journey-step[data-status="done"] .journey-line { background: var(--success, #3ddc97); }
+.journey-dot { position: relative; z-index: 1; width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--line); background: var(--panel); color: var(--text-muted); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 120ms; }
+.journey-dot:hover:not(:disabled) { transform: scale(1.08); }
+.journey-dot:disabled { cursor: default; opacity: 0.6; }
+.journey-dot[data-status="done"] { background: var(--success, #3ddc97); border-color: var(--success, #3ddc97); color: #06251a; }
+.journey-dot[data-status="current"] { border-color: var(--accent, #2ec4a0); color: var(--accent, #2ec4a0); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent, #2ec4a0) 18%, transparent); }
+.journey-dot[data-status="blocked"] { border-color: var(--danger, #ff6b6b); color: var(--danger, #ff6b6b); }
+.journey-dot[data-status="skipped"] { border-style: dashed; }
+.journey-label { font-size: var(--t-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+.journey-step[data-status="current"] .journey-label { color: var(--text); }
+.journey-detail { font-size: var(--t-xs); max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.journey-next { border-top: 1px solid var(--line-soft); padding: var(--s-3) var(--s-4); background: color-mix(in srgb, var(--accent, #2ec4a0) 6%, transparent); }
+
+/* Dashboard flow strip — the same path, with how much work sits at each hand-off. */
+.flow-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: var(--s-2); margin-bottom: var(--s-5); }
+.flow-tile { display: flex; flex-direction: column; gap: 2px; padding: var(--s-3) var(--s-3); border-radius: 10px; background: var(--panel); border: 1px solid var(--line-soft); text-decoration: none; color: inherit; position: relative; transition: border-color 120ms, transform 120ms; }
+.flow-tile:hover { border-color: var(--accent, #2ec4a0); transform: translateY(-1px); text-decoration: none; }
+.flow-tile .flow-count { font-size: 1.35rem; font-weight: 700; line-height: 1.1; }
+.flow-tile .flow-label { font-size: var(--t-xs); text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+.flow-tile .flow-hint { font-size: var(--t-xs); color: var(--text-muted); }
+.flow-tile[data-tone="danger"] .flow-count { color: var(--danger, #ff6b6b); }
+.flow-tile[data-tone="warning"] .flow-count { color: var(--warning, #f5b544); }
+.flow-tile[data-tone="success"] .flow-count { color: var(--success, #3ddc97); }
+.flow-tile[data-tone="progress"] .flow-count { color: var(--accent, #2ec4a0); }
+.flow-tile::after { content: '›'; position: absolute; right: -9px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 14px; }
+.flow-tile:last-child::after { content: none; }

@@ -1039,6 +1039,50 @@ test('the passwd CLI helper resets an account with a one-time password and react
   await post('/api/auth/login', { email: 'jbradfield@enovascience.com', password: 'enova2026' });
 });
 
+test('the product journey reports each hand-off and the next action, and moves as records are created', async () => {
+  await post('/api/auth/logout');
+  await post('/api/auth/login', { email: 'jbradfield@enovascience.com', password: 'enova2026' });
+
+  // a brand-new project: only the project step is live, the formula is the next thing to do
+  const project = await post('/api/data/projects', { code: 'P-JOURNEY', name: 'Journey test product', customerId: db.find('customers')[0].id, type: 'new_product', stage: 'intake' });
+  let related = await get(`/api/projects/${project.id}/related`);
+  const keys = related.journey.steps.map((s) => s.key);
+  assert.deepEqual(keys, ['request', 'project', 'formula', 'quote', 'approval', 'order', 'batch', 'qa', 'shipment']);
+  assert.equal(related.journey.steps[0].status, 'skipped', 'no RFQ behind it');
+  assert.equal(related.journey.steps[1].status, 'current');
+  assert.equal(related.journey.steps[2].status, 'todo');
+  assert.equal(related.journey.next.key, 'formula');
+  assert.match(related.journey.next.to, new RegExp(`/formulations/new\\?projectId=${project.id}`));
+
+  // add a formula: the formula step is current and the quote is next
+  const formula = await post('/api/data/formulas', { code: 'F-JOURNEY', name: 'Journey formula', format: 'capsule', projectId: project.id, servingsPerUnit: 30, actives: [{ itemId: db.find('items', { type: 'raw_material' })[0].id, name: 'Test', targetMg: 100, pricePerKg: 20 }] });
+  related = await get(`/api/projects/${project.id}/related`);
+  assert.equal(related.journey.steps[2].status, 'current');
+  assert.equal(related.journey.steps[2].record.id, formula.id);
+  assert.equal(related.journey.steps[3].status, 'todo');
+  assert.match(related.journey.steps[3].action.to, /\/quotes\/new\?formulaId=/);
+
+  // a quote created from the formula inherits the project and shows on the journey
+  const quote = await post('/api/commerce/quotes', { formulaId: formula.id });
+  assert.equal(quote.projectId, project.id, 'quote inherits the formula\'s project');
+  related = await get(`/api/projects/${project.id}/related`);
+  assert.equal(related.journey.steps[3].status, 'current');
+  assert.equal(related.journey.steps[3].record.id, quote.id);
+  // the formula is still a draft, so finishing it stays the next hand-off ahead of sending the quote
+  assert.equal(related.journey.next.key, 'formula');
+  await post(`/api/commerce/formulas/${formula.id}/approve`, {});
+  related = await get(`/api/projects/${project.id}/related`);
+  assert.equal(related.journey.steps[2].status, 'done');
+  assert.equal(related.journey.next.key, 'quote');
+  assert.ok(related.journey.progress >= 0);
+
+  // the dashboard flow strip counts it
+  const dashboard = await get('/api/dashboard');
+  const tile = dashboard.flow.find((t) => t.key === 'projects');
+  assert.ok(tile && tile.count >= 1 && tile.link === '/development');
+  assert.ok(dashboard.flow.some((t) => t.key === 'quotes' && t.count >= 1));
+});
+
 async function postCsv(url, csv, filename = 'data.csv') {
   const form = new FormData();
   form.append('file', new Blob([csv], { type: 'text/csv' }), filename);

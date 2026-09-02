@@ -13,7 +13,7 @@ import { api, useList } from '../lib/api';
 import { useUi } from '../lib/ui';
 import { useSession } from '../lib/session';
 import { useViewing } from '../lib/realtime';
-import { useCustomers, useFormulas, useProjects, useUsers } from '../lib/lookups';
+import { useCustomers, useFormulas, useProductionLines, useProjects, useUsers } from '../lib/lookups';
 import { ProjectLink } from '../components/ProjectLink';
 import { compact, dateShort, number, percent, relative } from '../lib/format';
 import { PRIORITIES, WORK_ORDER_STAGES, findOption } from '@shared/domain';
@@ -58,7 +58,8 @@ export function Production() {
     });
   }, [allCards, search, line, customers]);
 
-  const lines = useMemo(() => [...new Set(allCards.map((wo) => wo.line).filter(Boolean))].sort(), [allCards]);
+  const cardLines = useMemo(() => [...new Set(allCards.map((wo) => wo.line).filter(Boolean))].sort(), [allCards]);
+  const lines = useProductionLines(cardLines);
 
   const move = async (request: MoveRequest) => {
     try {
@@ -287,7 +288,7 @@ function NewWorkOrder({ open, onClose, onCreated, formulaOptions, userOptions, l
               onChange={setLine}
               allowEmpty
               placeholder="Assign later"
-              options={(lines.length ? lines : ['Gummy Line 1', 'Gummy Line 2', 'Encapsulation 1', 'Encapsulation 2', 'Tablet Press', 'Sachet / Stick Pack', 'Blending', 'Tincture']).map((l) => ({ value: l, label: l }))}
+              options={lines.map((l) => ({ value: l, label: l }))}
             />
           </Field>
           <Field label="Planned start">

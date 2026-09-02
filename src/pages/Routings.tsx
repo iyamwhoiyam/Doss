@@ -9,6 +9,7 @@ import {
 import { api, useList, useSave } from '../lib/api';
 import { useUi } from '../lib/ui';
 import { useSession } from '../lib/session';
+import { useProductionLines } from '../lib/lookups';
 import { useViewing } from '../lib/realtime';
 import { money, number } from '../lib/format';
 import { FORMULA_FORMATS, findOption } from '@shared/domain';
@@ -40,12 +41,8 @@ export function Routings() {
   const writable = can('production.write');
 
   const { data, isLoading } = useList<Routing>('routings', { sort: 'code', limit: 200 });
-  const { data: linesSetting } = useList<{ key: string; value: string[] }>('settings', { where: { key: 'production.lines' }, limit: 1 });
-  const lines = useMemo(() => {
-    const configured = linesSetting?.rows?.[0]?.value ?? [];
-    const used = (data?.rows ?? []).flatMap((r) => r.operations.map((o) => o.workCenter)).filter(Boolean);
-    return [...new Set([...configured, ...used])];
-  }, [linesSetting, data]);
+  const used = useMemo(() => (data?.rows ?? []).flatMap((r) => r.operations.map((o) => o.workCenter)).filter(Boolean), [data]);
+  const lines = useProductionLines(used);
 
   const save = useSave<Routing>('routings');
   const [editing, setEditing] = useState<Partial<Routing> | null>(null);

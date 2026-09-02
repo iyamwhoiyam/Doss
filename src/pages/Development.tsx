@@ -31,7 +31,8 @@ export function Development() {
   const [params, setParams] = useSearchParams();
   // Arriving with ?stage= (from the dashboard pipeline) opens the list filtered to that stage.
   const stageFilter = params.get('stage') ?? '';
-  const [view, setView] = useState<'board' | 'list'>(stageFilter ? 'list' : 'board');
+  const lockFilter = params.get('lock') ?? '';
+  const [view, setView] = useState<'board' | 'list'>(stageFilter || lockFilter ? 'list' : 'board');
   const [search, setSearch] = useState('');
   const [owner, setOwner] = useState('');
   const [newOpen, setNewOpen] = useState(false);
@@ -42,11 +43,12 @@ export function Development() {
     const needle = search.trim().toLowerCase();
     return (data?.rows ?? []).filter((project) => {
       if (stageFilter && project.stage !== stageFilter) return false;
+      if (lockFilter && (project.lockState ?? 'open') !== lockFilter) return false;
       if (owner && project.ownerId !== owner) return false;
       if (!needle) return true;
       return `${project.code} ${project.name} ${customers.name(project.customerId)} ${project.brief}`.toLowerCase().includes(needle);
     });
-  }, [data, search, owner, stageFilter, customers]);
+  }, [data, search, owner, stageFilter, lockFilter, customers]);
 
   const move = async (request: MoveRequest) => {
     const project = projects.find((p) => p.id === request.id);
@@ -105,10 +107,15 @@ export function Development() {
   return (
     <div className="page page-wide">
       <PageHeader
-        title="Product development"
-        subtitle={`${projects.length} projects · drag a project to advance it through the stage gates`}
+        title="Projects"
+        subtitle={`${projects.length} projects · click one to open it, drag to advance it through the stage gates`}
         actions={
           <>
+            {lockFilter && (
+              <button type="button" className="btn btn-sm" onClick={() => { params.delete('lock'); setParams(params); }}>
+                <Icon name="x" size={12} /> {lockFilter === 'pending_approval' ? 'Awaiting approval' : lockFilter} only
+              </button>
+            )}
             {stageFilter && (
               <button type="button" className="btn btn-sm" onClick={() => { params.delete('stage'); setParams(params); }}>
                 <Icon name="x" size={12} /> {findOption(PROJECT_STAGES, stageFilter).label} only

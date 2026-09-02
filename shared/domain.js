@@ -386,29 +386,32 @@ export const NAV = [
   { group: 'Overview', items: [
     { to: '/', label: 'Dashboard', icon: 'dashboard' },
     { to: '/my-work', label: 'My work', icon: 'check' },
-    { to: '/activity', label: 'Activity', icon: 'activity' },
-    { to: '/reports', label: 'Reports', icon: 'chart', perm: 'cost.view' },
   ] },
-  { group: 'Make', items: [
-    { to: '/production', label: 'Production', icon: 'factory' },
-    { to: '/schedule', label: 'Schedule', icon: 'calendar' },
-    { to: '/planning', label: 'Planning', icon: 'target', perm: 'cost.view' },
-    { to: '/routings', label: 'Routings', icon: 'sliders' },
-    { to: '/inventory', label: 'Inventory', icon: 'boxes' },
-    { to: '/purchasing', label: 'Vendors & POs', icon: 'truck' },
-  ] },
-  { group: 'Develop', items: [
-    { to: '/development', label: 'Development', icon: 'flask' },
-    { to: '/formulations', label: 'Formulations', icon: 'beaker' },
-    { to: '/quotes', label: 'Quotes & costing', icon: 'calculator' },
-    { to: '/labels', label: 'Label review', icon: 'label' },
-    { to: '/samples', label: 'Samples', icon: 'send' },
-  ] },
-  { group: 'Commercial', items: [
+  // In the order work flows through the building: sell it, develop it, make it, ship it.
+  { group: 'Sell', items: [
     { to: '/rfqs', label: 'Quote requests', icon: 'clipboard' },
     { to: '/customers', label: 'Customers', icon: 'building' },
+    { to: '/quotes', label: 'Quotes & costing', icon: 'calculator' },
+    { to: '/orders', label: 'Orders & shipments', icon: 'cart' },
+  ] },
+  { group: 'Develop', items: [
+    { to: '/development', label: 'Projects', icon: 'flask' },
+    { to: '/formulations', label: 'Formulations', icon: 'beaker' },
+    { to: '/samples', label: 'Samples', icon: 'send' },
+    { to: '/labels', label: 'Label review', icon: 'label' },
+  ] },
+  { group: 'Make', items: [
+    { to: '/planning', label: 'Planning', icon: 'target', perm: 'cost.view' },
+    { to: '/purchasing', label: 'Purchasing', icon: 'truck' },
+    { to: '/inventory', label: 'Inventory', icon: 'boxes' },
+    { to: '/production', label: 'Production', icon: 'factory' },
+    { to: '/schedule', label: 'Schedule', icon: 'calendar' },
+    { to: '/routings', label: 'Routings', icon: 'sliders' },
+  ] },
+  { group: 'Records', items: [
     { to: '/documents', label: 'Documents', icon: 'folder' },
-    { to: '/orders', label: 'Orders', icon: 'cart' },
+    { to: '/activity', label: 'Activity', icon: 'activity' },
+    { to: '/reports', label: 'Reports', icon: 'chart', perm: 'cost.view' },
   ] },
   { group: 'System', items: [
     { to: '/admin', label: 'Admin', icon: 'settings', perm: 'settings.manage' },

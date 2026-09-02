@@ -118,7 +118,7 @@ export function QuoteBuilder() {
     setBusy(true);
     try {
       if (isNew) {
-        const created = await api.post<Quote>('/commerce/quotes', { formulaId, tiers, coaFee });
+        const created = await api.post<Quote>('/commerce/quotes', { formulaId, tiers, coaFee, projectId: params.get('projectId') ?? undefined });
         queryClient.invalidateQueries({ queryKey: ['collection', 'quotes'] });
         success(`${created.quoteNumber} created`);
         navigate(`/quotes/${created.id}`, { replace: true });

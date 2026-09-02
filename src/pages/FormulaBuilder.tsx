@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { PageHeader } from '../components/Shell';
@@ -62,6 +62,7 @@ function blankFormula(): Partial<Formula> {
 export function FormulaBuilder() {
   const { id } = useParams<{ id: string }>();
   const isNew = !id || id === 'new';
+  const [params] = useSearchParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { error, success, confirm } = useUi();
@@ -90,6 +91,13 @@ export function FormulaBuilder() {
   useEffect(() => {
     if (saved) { setDraft(saved); setDirty(false); }
   }, [saved]);
+
+  // Arriving from a project ("Create the formula"): start linked to it.
+  useEffect(() => {
+    if (!isNew) return;
+    const projectId = params.get('projectId'); const customerId = params.get('customerId'); const name = params.get('name');
+    if (projectId || customerId || name) setDraft((cur) => ({ ...cur, ...(projectId ? { projectId } : {}), ...(customerId ? { customerId } : {}), ...(name && !cur.name ? { name } : {}) }));
+  }, [isNew, params]);
 
   const update = useCallback((patch: Partial<Formula>) => {
     setDraft((current) => ({ ...current, ...patch }));

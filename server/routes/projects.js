@@ -19,6 +19,7 @@ import { Router } from 'express';
 import { actorContext, requirePermission, HttpError } from '../lib/auth.js';
 import { route, requireFields } from '../lib/http.js';
 import { logActivity, notifyRole } from '../lib/events.js';
+import { productJourney } from '../calc/journey.js';
 
 /**
  * Freeze a project as the customer-approved production-of-record. Shared by the
@@ -56,6 +57,7 @@ export function projectsRouter(db) {
       workOrders: project.formulaId ? list('workOrders', { formulaId: project.formulaId }, '-createdAt') : { rows: [], total: 0 },
       samples: list('samples', { projectId: project.id }, '-createdAt'),
       tasks: list('tasks', { refId: project.id }, 'boardOrder'),
+      journey: productJourney(db, project),
     });
   }));
 

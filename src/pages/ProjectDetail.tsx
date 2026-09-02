@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { PageHeader } from '../components/Shell';
 import { ProjectEditor, type ProjectSection } from '../components/ProjectEditor';
+import { ProductJourney } from '../components/ProductJourney';
 import { Icon } from '../components/Icon';
 import {
   Avatar, AvatarStack, Badge, Card, CardHead, CopyButton, Field, Flag, KeyValue, Loading, Meter,
@@ -13,10 +14,10 @@ import { api, useRecord, type ListResult } from '../lib/api';
 import { useUi } from '../lib/ui';
 import { useSession } from '../lib/session';
 import { useViewing } from '../lib/realtime';
-import { useCustomers, useUsers } from '../lib/lookups';
+import { useCustomers, useProductionLines, useUsers } from '../lib/lookups';
 import { date, dateTime, relative, toDateInput } from '../lib/format';
 import { HEALTH, PRIORITIES, PRODUCT_LOCK_STATES, PROJECT_STAGES, PROJECT_TYPES, SAMPLE_STATUS, WORK_ORDER_STAGES, findOption } from '@shared/domain';
-import type { Formula, LabelReview, Project, Quote, Sample, Task, WorkOrder } from '../lib/types';
+import type { Formula, Journey, LabelReview, Project, Quote, Sample, Task, WorkOrder } from '../lib/types';
 
 export function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
@@ -36,7 +37,7 @@ export function ProjectDetail() {
   // Everything linked to the project arrives in one request.
   const { data: related } = useQuery<{
     formulas: ListResult<Formula>; quotes: ListResult<Quote>; labelReviews: ListResult<LabelReview>;
-    workOrders: ListResult<WorkOrder>; samples: ListResult<Sample>; tasks: ListResult<Task>;
+    workOrders: ListResult<WorkOrder>; samples: ListResult<Sample>; tasks: ListResult<Task>; journey: Journey;
   }>({ queryKey: ['projects', 'related', id], queryFn: () => api.get(`/projects/${id}/related`), enabled: Boolean(id) });
   const formulas = related?.formulas;
   const quotes = related?.quotes;
@@ -89,7 +90,7 @@ export function ProjectDetail() {
   return (
     <div className="page">
       <PageHeader
-        back={{ to: '/development', label: 'Development pipeline' }}
+        back={{ to: '/development', label: 'Projects' }}
         title={project.name}
         badge={
           <>
@@ -125,6 +126,14 @@ export function ProjectDetail() {
             </>
           )
         }
+      />
+
+      <ProductJourney
+        journey={related?.journey}
+        onAction={(kind) => {
+          if (kind === 'batch') setBatchOpen(true);
+          else if (kind === 'approval') document.getElementById('product-approval')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }}
       />
 
       <ProductLockPanel
@@ -468,7 +477,7 @@ function ProductLockPanel({ project, onChanged }: { project: Project; onChanged:
   const link = project.approvalToken ? `${window.location.origin}/approve/${project.approvalToken}` : '';
 
   return (
-    <>
+    <div id="product-approval">
       {state === 'locked' ? (
         <Card className="lock-banner" style={{ marginBottom: 'var(--s-4)' }}>
           <div className="card-body row" style={{ alignItems: 'center', gap: 'var(--s-4)' }}>
@@ -559,7 +568,7 @@ function ProductLockPanel({ project, onChanged }: { project: Project; onChanged:
         onClose={() => setRecordOpen(false)}
         onDone={() => { setRecordOpen(false); onChanged(); }}
       />
-    </>
+    </div>
   );
 }
 
@@ -621,7 +630,7 @@ function StartBatchModal({ open, project, onClose, onCreated }: {
   const [plannedQty, setPlannedQty] = useState(10000);
   const [line, setLine] = useState('');
   const [busy, setBusy] = useState(false);
-  const lines = ['Gummy Line 1', 'Gummy Line 2', 'Encapsulation 1', 'Encapsulation 2', 'Tablet Press', 'Sachet / Stick Pack', 'Blending', 'Tincture'];
+  const lines = useProductionLines();
 
   const start = async () => {
     setBusy(true);

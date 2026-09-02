@@ -93,6 +93,16 @@ export function useFormulas() {
   };
 }
 
+/** The production lines from Settings, plus any line a work order already names. */
+export function useProductionLines(extra: string[] = []) {
+  const { data } = useList<{ key: string; value: unknown }>('settings', { where: { key: 'production.lines' }, limit: 1 }, LONG_CACHE);
+  return useMemo(() => {
+    const configured = data?.rows?.[0]?.value;
+    const base = Array.isArray(configured) ? (configured as string[]) : [];
+    return [...new Set([...base, ...extra.filter(Boolean)])];
+  }, [data, extra]);
+}
+
 export function useProjects() {
   const { data } = useList<Project>('projects', { sort: 'code', limit: 500 }, LONG_CACHE);
   const rows = useMemo(() => data?.rows ?? [], [data]);

@@ -5,6 +5,8 @@
 
 import { Router } from 'express';
 
+import { flowCounts } from '../calc/journey.js';
+
 import {
   PROJECT_STAGES, WORK_ORDER_STAGES, TASK_STATUS, enumValues,
 } from '../../shared/domain.js';
@@ -63,6 +65,7 @@ export function insightsRouter(db) {
 
     res.json({
       generatedAt: new Date().toISOString(),
+      flow: flowCounts(db),
       kpis: [
         {
           key: 'wo_open', label: 'Open work orders', value: openWo.length,

@@ -390,8 +390,18 @@ export interface Kpi {
 
 export interface DashboardAlert { severity: string; module: string; title: string; detail: string; link: string }
 
+export interface FlowTile { key: string; label: string; count: number; hint: string; link: string; tone: string }
+
+export interface JourneyStep {
+  key: string; label: string; status: 'done' | 'current' | 'todo' | 'blocked' | 'skipped'; detail?: string;
+  record?: { type: string; id: string; label: string; link: string } | null;
+  action?: { label: string; kind: string; to: string | null } | null;
+}
+export interface Journey { steps: JourneyStep[]; next: { key: string; label: string; kind: string; to: string | null } | null; progress: number }
+
 export interface Dashboard {
   generatedAt: string;
+  flow: FlowTile[];
   kpis: Kpi[];
   production: { value: string; label: string; tone: string; count: number; units: number; wipLimit?: number }[];
   pipeline: { value: string; label: string; tone: string; count: number }[];

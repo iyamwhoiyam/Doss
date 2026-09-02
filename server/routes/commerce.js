@@ -202,7 +202,7 @@ export function commerceRouter(db) {
         title: req.body.title || formula.name,
         customerId: customer?.id ?? '',
         formulaId: formula.id,
-        projectId: req.body.projectId ?? '',
+        projectId: req.body.projectId || formula.projectId || '',
         status: 'draft',
         revision: 1,
         ownerId: req.user.id,

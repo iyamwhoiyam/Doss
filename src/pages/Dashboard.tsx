@@ -50,6 +50,16 @@ export function Dashboard() {
         actions={<span className="cell-sub">Refreshed {relative(data.generatedAt)}</span>}
       />
 
+      <div className="flow-strip" aria-label="How work is flowing">
+        {data.flow.map((tile) => (
+          <Link key={tile.key} to={tile.link} className="flow-tile" data-tone={tile.count ? tile.tone : 'neutral'} title={`${tile.count} ${tile.hint}`}>
+            <span className="flow-label">{tile.label}</span>
+            <span className="flow-count">{tile.count}</span>
+            <span className="flow-hint">{tile.hint}</span>
+          </Link>
+        ))}
+      </div>
+
       <div className="grid grid-kpi" style={{ marginBottom: 'var(--s-5)' }}>
         {data.kpis.map((kpi) => (
           <Link key={kpi.key} to={kpi.link} className="kpi" data-tone={kpi.tone}>
