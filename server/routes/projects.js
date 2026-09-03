@@ -50,15 +50,58 @@ export function projectsRouter(db) {
       const rows = db.find(collection, where, sort ? { sort } : undefined);
       return { rows, total: rows.length };
     };
+    // Quotes belong to the project directly, or through its formula (older quotes were only linked that way).
+    const quoteRows = db.find('quotes').filter((q) => q.projectId === project.id || (project.formulaId && q.formulaId === project.formulaId));
+    const quotes = { rows: quoteRows, total: quoteRows.length };
+    const quoteIds = new Set(quoteRows.map((q) => q.id));
+    const byDate = (a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? ''));
+    const workOrders = db.find('workOrders').filter((wo) => wo.projectId === project.id || (project.formulaId && wo.formulaId === project.formulaId)).sort(byDate);
+    const salesOrders = db.find('salesOrders').filter((so) => so.projectId === project.id || quoteIds.has(so.quoteId)).sort(byDate);
+    const formula = project.formulaId ? db.get('formulas', project.formulaId) : null;
     res.json({
       formulas: list('formulas', { projectId: project.id }),
-      quotes: list('quotes', { projectId: project.id }),
+      quotes,
       labelReviews: list('labelReviews', { projectId: project.id }),
-      workOrders: project.formulaId ? list('workOrders', { formulaId: project.formulaId }, '-createdAt') : { rows: [], total: 0 },
+      workOrders: { rows: workOrders, total: workOrders.length },
+      salesOrders: { rows: salesOrders, total: salesOrders.length },
       samples: list('samples', { projectId: project.id }, '-createdAt'),
       tasks: list('tasks', { refId: project.id }, 'boardOrder'),
       journey: productJourney(db, project),
+      // The reference numbers everyone quotes on the phone, in one place.
+      numbers: {
+        project: project.code,
+        formula: formula ? { id: formula.id, code: formula.code, revision: formula.revision } : null,
+        quotes: quotes.rows.map((q) => ({ id: q.id, number: q.quoteNumber, status: q.status })),
+        salesOrders: salesOrders.map((so) => ({ id: so.id, number: so.orderNumber, customerPo: so.customerPo, status: so.status })),
+        workOrders: workOrders.map((wo) => ({ id: wo.id, number: wo.woNumber, batchNumber: wo.batchNumber, stage: wo.stage })),
+      },
     });
+  }));
+
+  /**
+   * Attach an existing order or batch to this project (or detach it). The
+   * record's projectId is the link, so it shows up in the numbers, the journey
+   * and every list that filters by project.
+   */
+  router.post('/:id/link', requirePermission('projects.write'), route((req, res) => {
+    const project = db.getOrFail('projects', req.params.id);
+    const { salesOrderId, workOrderId, detach = false } = req.body ?? {};
+    const ctx = actorContext(req);
+    if (!salesOrderId && !workOrderId) throw new HttpError(422, 'Pick an order or a batch to link');
+    const changed = [];
+    if (salesOrderId) {
+      const so = db.getOrFail('salesOrders', salesOrderId);
+      changed.push(db.update('salesOrders', so.id, { projectId: detach ? '' : project.id }, ctx).orderNumber);
+    }
+    if (workOrderId) {
+      const wo = db.getOrFail('workOrders', workOrderId);
+      changed.push(db.update('workOrders', wo.id, { projectId: detach ? '' : project.id }, ctx).woNumber);
+    }
+    logActivity(db, req, {
+      type: 'project', title: `${changed.join(', ')} ${detach ? 'detached from' : 'linked to'} ${project.code}`, detail: project.name,
+      tone: 'info', refType: 'project', refId: project.id, link: `/development/${project.id}`,
+    });
+    res.json({ ok: true, changed });
   }));
 
   router.post('/:id/request-approval', requirePermission('product.lock'), route((req, res) => {

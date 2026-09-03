@@ -1083,6 +1083,45 @@ test('the product journey reports each hand-off and the next action, and moves a
   assert.ok(dashboard.flow.some((t) => t.key === 'quotes' && t.count >= 1));
 });
 
+test('SO# and MO# follow the product: orders and batches carry the project, show in its numbers, and can be linked by hand', async () => {
+  await post('/api/auth/logout');
+  await post('/api/auth/login', { email: 'jbradfield@enovascience.com', password: 'enova2026' });
+
+  const project = db.findOne('projects', { code: 'P-JOURNEY' });
+  const formula = db.findOne('formulas', { code: 'F-JOURNEY' });
+  // a batch planned from the formula belongs to the project
+  const wo = await post('/api/production/from-formula', { formulaId: formula.id, plannedQty: 1000 });
+  assert.equal(wo.projectId, project.id);
+  // an order raised from the quote does too
+  const quote = db.find('quotes', { formulaId: formula.id })[0];
+  await post(`/api/commerce/quotes/${quote.id}/recompute`, { tiers: [{ qty: 1000, labor: { encapsulationPer1000: 15, packagingPer1000: 10, qcPctOfProduction: 0.12 }, overheadRate: 0.9, margin: 0.4 }], coaFee: 0 });
+  const so = await post(`/api/commerce/quotes/${quote.id}/to-order`, { qty: 1000, customerPo: 'PO-TEST-1' });
+  assert.equal(so.projectId, project.id);
+
+  const related = await get(`/api/projects/${project.id}/related`);
+  assert.deepEqual(related.numbers.salesOrders.map((x) => x.number), [so.orderNumber]);
+  assert.ok(related.numbers.workOrders.some((x) => x.number === wo.woNumber));
+  assert.equal(related.numbers.formula.code, 'F-JOURNEY');
+  assert.equal(related.salesOrders.total, 1);
+
+  // an unrelated seeded order can be attached and detached by hand
+  const other = db.find('salesOrders').find((x) => x.projectId !== project.id);
+  await post(`/api/projects/${project.id}/link`, { salesOrderId: other.id });
+  assert.equal(db.get('salesOrders', other.id).projectId, project.id);
+  assert.equal((await get(`/api/projects/${project.id}/related`)).numbers.salesOrders.length, 2);
+  await post(`/api/projects/${project.id}/link`, { salesOrderId: other.id, detach: true });
+  assert.equal(db.get('salesOrders', other.id).projectId, '');
+
+  // a generic record created with only a quote id derives its project
+  const raw = await post('/api/data/salesOrders', { orderNumber: 'SO-DERIVED-1', customerId: project.customerId, quoteId: quote.id, lines: [], status: 'draft' });
+  assert.equal(db.get('salesOrders', raw.id).projectId, project.id, 'projectId derived from the quote');
+
+  // and the SO# is searchable
+  const hits = await get(`/api/search?q=${encodeURIComponent(so.orderNumber)}`);
+  const flat = JSON.stringify(hits);
+  assert.match(flat, new RegExp(so.orderNumber));
+});
+
 async function postCsv(url, csv, filename = 'data.csv') {
   const form = new FormData();
   form.append('file', new Blob([csv], { type: 'text/csv' }), filename);

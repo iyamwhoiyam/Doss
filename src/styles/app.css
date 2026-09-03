@@ -1147,3 +1147,12 @@ a.list-row:hover { text-decoration: none; }
 .flow-tile[data-tone="progress"] .flow-count { color: var(--accent, #2ec4a0); }
 .flow-tile::after { content: '›'; position: absolute; right: -9px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 14px; }
 .flow-tile:last-child::after { content: none; }
+
+/* Reference-number chips: SO# (sales order) and MO# (manufacturing order / batch). */
+.ref-chip { display: inline-flex; align-items: center; gap: 3px; font-family: var(--font-mono, ui-monospace, monospace); font-size: var(--t-xs); padding: 1px 6px; border-radius: 6px; border: 1px solid var(--line-soft); color: var(--text); text-decoration: none; white-space: nowrap; }
+.ref-chip::before { font-family: var(--font, system-ui); font-weight: 600; letter-spacing: 0.04em; color: var(--text-muted); font-size: 10px; }
+.ref-chip[data-kind="so"]::before { content: 'SO'; }
+.ref-chip[data-kind="mo"]::before { content: 'MO'; }
+.ref-chip[data-kind="q"]::before { content: 'Q'; }
+.ref-chip[data-kind="f"]::before { content: 'F'; }
+.ref-chip:hover { border-color: var(--accent, #2ec4a0); text-decoration: none; background: color-mix(in srgb, var(--accent, #2ec4a0) 10%, transparent); }

@@ -168,7 +168,7 @@ export function WorkOrderDetail() {
             {wo.formulaId && <> · <Link to={`/formulations/${wo.formulaId}`}>{formulas.get(wo.formulaId)?.code ?? 'formula'}</Link></>}
             {(() => {
               // Resolve the project from either side of the link.
-              const pid = formulas.get(wo.formulaId)?.projectId || projects.rows.find((p) => p.formulaId === wo.formulaId)?.id;
+              const pid = formulas.get(wo.formulaId)?.projectId || ((wo.projectId ? projects.byId.get(wo.projectId) : undefined) ?? projects.rows.find((p) => p.formulaId === wo.formulaId))?.id;
               return pid ? <> · <Link to={`/development/${pid}`}>project</Link></> : null;
             })()}
           </>

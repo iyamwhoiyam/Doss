@@ -168,11 +168,11 @@ export function Dashboard() {
             />
             <div className="card-body-flush">
               {data.myWork.tasks.slice(0, 6).map((task) => (
-                <div key={task.id} className="list-row">
+                <Link key={task.id} to={`/my-work?task=${task.id}`} className="list-row">
                   <Icon name="check" size={13} className="faint" />
                   <span className="grow truncate">{task.title}</span>
                   <span className="cell-sub nowrap">{task.dueDate ? relative(task.dueDate) : '—'}</span>
-                </div>
+                </Link>
               ))}
               {data.myWork.tasks.length === 0 && (
                 <div className="cell-sub" style={{ padding: 'var(--s-5)', textAlign: 'center' }}>No open tasks assigned to you.</div>

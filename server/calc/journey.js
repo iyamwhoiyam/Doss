@@ -23,10 +23,10 @@ export function productJourney(db, project) {
     .concat(formula ? db.find('quotes', { formulaId: formula.id }).filter((q) => q.projectId !== project.id) : []);
   const quote = latest(quotes.filter((q) => q.status !== 'declined' && q.status !== 'expired')) ?? latest(quotes);
   const quoteIds = new Set(quotes.map((q) => q.id));
-  const orders = db.find('salesOrders').filter((so) => quoteIds.has(so.quoteId));
+  const orders = db.find('salesOrders').filter((so) => so.projectId === project.id || quoteIds.has(so.quoteId));
   const order = latest(orders);
   const orderIds = new Set(orders.map((so) => so.id));
-  const workOrders = formula ? db.find('workOrders', { formulaId: formula.id }).filter((wo) => wo.stage !== 'cancelled') : [];
+  const workOrders = db.find('workOrders').filter((wo) => (wo.projectId === project.id || (formula && wo.formulaId === formula.id)) && wo.stage !== 'cancelled');
   const wo = latest(workOrders);
   const shipments = db.find('shipments').filter((sh) => orderIds.has(sh.salesOrderId));
   const shipment = latest(shipments);

@@ -5,7 +5,8 @@ import { PageHeader } from '../components/Shell';
 import { Card, DataTable, SearchInput, Select, StatusBadge, Tabs, type Column, Badge } from '../components/ui';
 import { useList } from '../lib/api';
 import { useViewing } from '../lib/realtime';
-import { useCustomers, useUsers } from '../lib/lookups';
+import { useCustomers, useProjects, useUsers } from '../lib/lookups';
+import { ProjectLink } from '../components/ProjectLink';
 import { date, daysUntil, money, number, relative, unitMoney } from '../lib/format';
 import { PRIORITIES, SO_STATUS } from '@shared/domain';
 import type { SalesOrder, Shipment } from '../lib/types';
@@ -14,6 +15,7 @@ export function Orders() {
   const navigate = useNavigate();
   const customers = useCustomers();
   const users = useUsers();
+  const projects = useProjects();
   useViewing('customer orders');
 
   const [tab, setTab] = useState('orders');
@@ -49,6 +51,7 @@ export function Orders() {
     ) },
     { key: 'customer', header: 'Customer', sortValue: (row) => customers.name(row.customerId), render: (row) => customers.name(row.customerId) },
     { key: 'product', header: 'Product', render: (row) => <span className="truncate">{row.lines[0]?.description ?? '—'}</span> },
+    { key: 'project', header: 'Project', sortValue: (row) => projects.byId.get(row.projectId ?? '')?.code ?? '', render: (row) => { const p = row.projectId ? projects.byId.get(row.projectId) : undefined; return <ProjectLink id={p?.id} code={p?.code} />; } },
     { key: 'status', header: 'Status', sortValue: (row) => row.status, render: (row) => <StatusBadge list={SO_STATUS} value={row.status} /> },
     { key: 'priority', header: '', render: (row) => (row.priority !== 'normal' ? <StatusBadge list={PRIORITIES} value={row.priority} dot={false} /> : null) },
     { key: 'qty', header: 'Units', numeric: true, sortValue: (row) => row.lines[0]?.qty ?? 0, render: (row) => number(row.lines[0]?.qty ?? 0) },

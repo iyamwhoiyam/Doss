@@ -569,6 +569,7 @@ export function productionRouter(db) {
         priority: req.body.priority ?? 'normal',
         productName: formula.name,
         formulaId: formula.id,
+        projectId: req.body.projectId ?? formula.projectId ?? '',
         customerId: formula.customerId,
         salesOrderId: req.body.salesOrderId ?? '',
         line,

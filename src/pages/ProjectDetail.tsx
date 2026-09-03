@@ -5,6 +5,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '../components/Shell';
 import { ProjectEditor, type ProjectSection } from '../components/ProjectEditor';
 import { ProductJourney } from '../components/ProductJourney';
+import { TaskDrawer } from '../components/TaskDrawer';
+import { ReferenceNumbers } from '../components/ReferenceNumbers';
 import { Icon } from '../components/Icon';
 import {
   Avatar, AvatarStack, Badge, Card, CardHead, CopyButton, Field, Flag, KeyValue, Loading, Meter,
@@ -17,7 +19,7 @@ import { useViewing } from '../lib/realtime';
 import { useCustomers, useProductionLines, useUsers } from '../lib/lookups';
 import { date, dateTime, relative, toDateInput } from '../lib/format';
 import { HEALTH, PRIORITIES, PRODUCT_LOCK_STATES, PROJECT_STAGES, PROJECT_TYPES, SAMPLE_STATUS, WORK_ORDER_STAGES, findOption } from '@shared/domain';
-import type { Formula, Journey, LabelReview, Project, Quote, Sample, Task, WorkOrder } from '../lib/types';
+import type { Formula, Journey, LabelReview, Project, ProjectNumbers, Quote, SalesOrder, Sample, Task, WorkOrder } from '../lib/types';
 
 export function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
@@ -37,7 +39,7 @@ export function ProjectDetail() {
   // Everything linked to the project arrives in one request.
   const { data: related } = useQuery<{
     formulas: ListResult<Formula>; quotes: ListResult<Quote>; labelReviews: ListResult<LabelReview>;
-    workOrders: ListResult<WorkOrder>; samples: ListResult<Sample>; tasks: ListResult<Task>; journey: Journey;
+    workOrders: ListResult<WorkOrder>; salesOrders: ListResult<SalesOrder>; samples: ListResult<Sample>; tasks: ListResult<Task>; journey: Journey; numbers: ProjectNumbers;
   }>({ queryKey: ['projects', 'related', id], queryFn: () => api.get(`/projects/${id}/related`), enabled: Boolean(id) });
   const formulas = related?.formulas;
   const quotes = related?.quotes;
@@ -45,6 +47,9 @@ export function ProjectDetail() {
   const workOrders = related?.workOrders;
   const samples = related?.samples;
   const tasks = related?.tasks;
+  const salesOrders = related?.salesOrders;
+  const [openTask, setOpenTask] = useState<Task | null>(null);
+  const refreshRelated = () => queryClient.invalidateQueries({ queryKey: ['projects', 'related', id] });
 
   // A customer-approved product is frozen: the UI disables editing to match the
   // server, which refuses the writes anyway.
@@ -105,6 +110,12 @@ export function ProjectDetail() {
           <>
             <span className="mono">{project.code}</span> · {customers.name(project.customerId)} ·
             {' '}{findOption(PROJECT_TYPES, project.type).label} · in {stage.label} since {relative(project.stageEnteredAt)}
+            {related?.numbers && (related.numbers.salesOrders.length > 0 || related.numbers.workOrders.length > 0) && (
+              <span className="row-wrap" style={{ gap: 4, marginLeft: 8, display: 'inline-flex', verticalAlign: 'middle' }}>
+                {related.numbers.salesOrders.map((so) => <Link key={so.id} to={`/orders/${so.id}`} className="ref-chip" data-kind="so" title={`Sales order · ${so.status}${so.customerPo ? ` · PO ${so.customerPo}` : ''}`}>{so.number}</Link>)}
+                {related.numbers.workOrders.map((wo) => <Link key={wo.id} to={`/production/${wo.id}`} className="ref-chip" data-kind="mo" title={`Manufacturing order · ${wo.stage.replace(/_/g, ' ')}`}>{wo.number}</Link>)}
+              </span>
+            )}
           </>
         }
         actions={
@@ -151,6 +162,8 @@ export function ProjectDetail() {
         onClose={() => setEditSection(null)}
         onSave={async (body) => { await patch(body); success('Project saved'); }}
       />
+
+      <TaskDrawer task={openTask} onClose={() => setOpenTask(null)} onChanged={refreshRelated} />
 
       <StartBatchModal
         open={batchOpen}
@@ -327,9 +340,22 @@ export function ProjectDetail() {
                   </div>
                 </Card>
                 <Card>
+                  <CardHead title="Sales orders" subtitle="SO# — what the customer ordered" icon="cart" />
+                  <div className="card-body-flush">
+                    {(salesOrders?.rows ?? []).map((so) => (
+                      <Link key={so.id} to={`/orders/${so.id}`} className="list-row">
+                        <Icon name="cart" size={14} className="faint" />
+                        <span className="grow truncate"><span className="mono">{so.orderNumber}</span>{so.customerPo ? ` · PO ${so.customerPo}` : ''} · {so.lines?.[0]?.qty?.toLocaleString() ?? '—'} units</span>
+                        <Badge tone="neutral">{so.status.replace(/_/g, ' ')}</Badge>
+                      </Link>
+                    ))}
+                    {(salesOrders?.rows ?? []).length === 0 && <div className="cell-sub" style={{ padding: 'var(--s-4)' }}>No order yet. Orders are created from an accepted quote, or link an existing one under Reference numbers.</div>}
+                  </div>
+                </Card>
+                <Card>
                   <CardHead
                     title="Production"
-                    subtitle="Work orders run from this product's formula"
+                    subtitle="MO# — batches run for this product"
                     icon="factory"
                     actions={can('production.write') && project.formulaId ? (
                       <button type="button" className="btn btn-sm btn-primary" onClick={() => setBatchOpen(true)}>
@@ -373,12 +399,12 @@ export function ProjectDetail() {
                 <CardHead title="Tasks on this project" icon="check" />
                 <div className="card-body-flush">
                   {(tasks?.rows ?? []).map((task) => (
-                    <Link key={task.id} to="/my-work" className="list-row">
+                    <div key={task.id} className="list-row" style={{ cursor: 'pointer' }} role="button" tabIndex={0} onClick={() => setOpenTask(task)} onKeyDown={(e) => { if (e.key === 'Enter') setOpenTask(task); }}>
                       <Badge tone={task.status === 'done' ? 'success' : task.status === 'blocked' ? 'danger' : 'neutral'}>{task.status}</Badge>
                       <span className="grow truncate">{task.title}</span>
                       <Avatar name={users.name(task.assigneeId)} size="sm" />
                       <span className="cell-sub nowrap">{task.dueDate ? relative(task.dueDate) : '—'}</span>
-                    </Link>
+                    </div>
                   ))}
                   {(tasks?.rows ?? []).length === 0 && <div className="cell-sub" style={{ padding: 'var(--s-4)' }}>No tasks linked to this project.</div>}
                 </div>
@@ -388,6 +414,8 @@ export function ProjectDetail() {
         </div>
 
         <div className="col">
+          <ReferenceNumbers projectId={project.id} numbers={related?.numbers} writable={writable} onChanged={refreshRelated} />
+
           <Section title="Project" icon="flask" actions={writable ? <button type="button" className="btn btn-sm btn-ghost" onClick={() => setEditSection('details')}><Icon name="edit" size={12} /> Edit</button> : undefined}>
             <KeyValue
               items={[

@@ -831,6 +831,8 @@ export function seed(db, { verbose = true } = {}) {
       priority: pick(['normal', 'normal', 'high', 'low']),
       customerPo: `${pick(['PO', 'ORD', 'REQ'])}-${int(10000, 99999)}`,
       quoteId: quote.id,
+      // Read the formula fresh: its project link was back-filled after these objects were captured.
+      projectId: quote.projectId || (formula ? db.get('formulas', formula.id)?.projectId : '') || '',
       ownerId: quote.ownerId,
       lines: [{
         formulaId: formula?.id ?? '', description: quote.title, qty: tier.qty, uom: 'ea',
@@ -903,6 +905,7 @@ export function seed(db, { verbose = true } = {}) {
       priority: pick(['normal', 'normal', 'high', 'critical', 'low']),
       productName: formula.name,
       formulaId: formula.id,
+      projectId: db.get('formulas', formula.id)?.projectId ?? '',
       customerId: so.customerId,
       salesOrderId: so.id,
       line: awaitingSlot ? '' : pick({

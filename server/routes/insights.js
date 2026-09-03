@@ -189,6 +189,7 @@ export function insightsRouter(db) {
     { collection: 'formulas', label: 'Formula', fields: ['code', 'name', 'notes'], title: (r) => `${r.code} · ${r.name}`, link: (r) => `/formulations/${r.id}` },
     { collection: 'quotes', label: 'Quote', fields: ['quoteNumber', 'title'], title: (r) => `${r.quoteNumber} · ${r.title}`, link: (r) => `/quotes/${r.id}` },
     { collection: 'projects', label: 'Project', fields: ['code', 'name', 'brief'], title: (r) => `${r.code} · ${r.name}`, link: (r) => `/development/${r.id}` },
+    { collection: 'salesOrders', label: 'Sales order', fields: ['orderNumber', 'customerPo'], title: (r) => `${r.orderNumber} · ${r.lines?.[0]?.description ?? ''}`, link: (r) => `/orders/${r.id}` },
     { collection: 'customers', label: 'Customer', fields: ['code', 'name', 'industry'], title: (r) => r.name, link: (r) => `/customers/${r.id}` },
     { collection: 'vendors', label: 'Vendor', fields: ['code', 'name'], title: (r) => r.name, link: (r) => `/purchasing/vendors/${r.id}` },
     { collection: 'items', label: 'Item', fields: ['itemCode', 'name', 'category', 'form'], title: (r) => `${r.itemCode} · ${r.name}`, link: (r) => `/inventory/${r.id}` },

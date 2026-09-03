@@ -97,6 +97,7 @@ export interface SalesOrderLine {
 }
 
 export interface SalesOrder extends BaseRecord {
+  projectId?: string;
   orderNumber: string; customerId: string; status: string; priority: string; customerPo: string;
   quoteId: string; ownerId: string; lines: SalesOrderLine[];
   subtotal: number; freight: number; total: number;
@@ -292,6 +293,7 @@ export interface WorkOrder extends BaseRecord {
   standardUnitCost?: number; standardMaterialCost?: number;
   actualUnitCost?: number; actualMaterialCost?: number; outputLotId?: string;
   routingId?: string; standardLaborMin?: number; standardLaborCost?: number; actualLaborMin?: number; actualLaborCost?: number;
+  projectId?: string;
   yieldPct: number; holdReason: string; boardOrder: number; stageEnteredAt: string | null;
   releasedBy: string; releasedAt: string | null; notes: string; tags: string[];
 }
@@ -396,6 +398,12 @@ export interface JourneyStep {
   key: string; label: string; status: 'done' | 'current' | 'todo' | 'blocked' | 'skipped'; detail?: string;
   record?: { type: string; id: string; label: string; link: string } | null;
   action?: { label: string; kind: string; to: string | null } | null;
+}
+export interface ProjectNumbers {
+  project: string; formula: { id: string; code: string; revision: number } | null;
+  quotes: { id: string; number: string; status: string }[];
+  salesOrders: { id: string; number: string; customerPo: string; status: string }[];
+  workOrders: { id: string; number: string; batchNumber: string; stage: string }[];
 }
 export interface Journey { steps: JourneyStep[]; next: { key: string; label: string; kind: string; to: string | null } | null; progress: number }
 

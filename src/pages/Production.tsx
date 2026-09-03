@@ -33,7 +33,7 @@ export function Production() {
   const customers = useCustomers();
   const users = useUsers();
   const projects = useProjects();
-  const projectForWo = (wo: WorkOrder) => projects.rows.find((p) => p.formulaId && p.formulaId === wo.formulaId);
+  const projectForWo = (wo: WorkOrder) => (wo.projectId ? projects.byId.get(wo.projectId) : undefined) ?? projects.rows.find((p) => p.formulaId && p.formulaId === wo.formulaId);
   const formulas = useFormulas();
   useViewing('the production board');
 

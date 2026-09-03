@@ -1,10 +1,12 @@
-import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useMemo, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { PageHeader } from '../components/Shell';
 import { Icon } from '../components/Icon';
 import { Board, type MoveRequest } from '../components/Board';
+import { TaskDrawer, TASK_REF_LINK } from '../components/TaskDrawer';
+import { ProjectLink } from '../components/ProjectLink';
 import {
   Avatar, Badge, Card, CardHead, Combo, Field, Modal, Section, Segmented,
   StatusBadge, TextArea, TextInput, Toggle,
@@ -13,24 +15,20 @@ import { api, useList } from '../lib/api';
 import { useUi } from '../lib/ui';
 import { useSession } from '../lib/session';
 import { useViewing } from '../lib/realtime';
-import { useUsers } from '../lib/lookups';
+import { useProjects, useUsers } from '../lib/lookups';
 import { date, daysUntil, relative } from '../lib/format';
 import { PRIORITIES, TASK_STATUS, WORK_ORDER_STAGES, findOption } from '@shared/domain';
 import type { Dashboard, Task } from '../lib/types';
 
-const REF_LINK: Record<string, (id: string) => string> = {
-  workOrder: (id) => `/production/${id}`,
-  project: (id) => `/development/${id}`,
-  purchaseOrder: (id) => `/purchasing/${id}`,
-  labelReview: (id) => `/labels/${id}`,
-  quote: (id) => `/quotes/${id}`,
-};
+const REF_LINK = TASK_REF_LINK;
 
 export function MyWork() {
   const queryClient = useQueryClient();
   const { user } = useSession();
   const { error, success } = useUi();
   const users = useUsers();
+  const projects = useProjects();
+  const [params, setParams] = useSearchParams();
   useViewing('their own work');
 
   const [view, setView] = useState<'board' | 'list'>('board');
@@ -38,6 +36,10 @@ export function MyWork() {
   const [newOpen, setNewOpen] = useState(false);
 
   const { data: tasks } = useList<Task>('tasks', { sort: 'boardOrder', limit: 500 });
+  // The open task lives in the URL, so a card, a dashboard row or a shared link all land on it.
+  const openId = params.get('task');
+  const openTask = openId ? tasks?.rows.find((t) => t.id === openId) ?? null : null;
+  const openTaskCard = (id: string | null) => { if (id) params.set('task', id); else params.delete('task'); setParams(params, { replace: true }); };
   const { data: dashboard } = useQuery<Dashboard>({ queryKey: ['dashboard'], queryFn: () => api.get<Dashboard>('/dashboard') });
 
   const mine = useMemo(
@@ -103,13 +105,13 @@ export function MyWork() {
               columns={TASK_STATUS.map((status) => ({ value: status.value, label: status.label, tone: status.tone }))}
               items={mine.map((task) => ({ ...task, column: task.status, order: task.boardOrder }))}
               onMove={move}
-              renderCard={(task) => <TaskCard task={task} assigneeName={users.name(task.assigneeId)} showAssignee={everyone} />}
+              renderCard={(task) => <TaskCard task={task} assigneeName={users.name(task.assigneeId)} showAssignee={everyone} project={task.refType === 'project' ? projects.byId.get(task.refId) : undefined} onOpen={() => openTaskCard(task.id)} />}
             />
           ) : (
             <Card>
               <div className="card-body-flush">
                 {mine.map((task) => (
-                  <div key={task.id} className="list-row">
+                  <div key={task.id} className="list-row" style={{ cursor: 'pointer' }} onClick={() => openTaskCard(task.id)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') openTaskCard(task.id); }}>
                     <StatusBadge list={TASK_STATUS} value={task.status} />
                     <span className="grow truncate">{task.title}</span>
                     {task.priority !== 'normal' && <StatusBadge list={PRIORITIES} value={task.priority} dot={false} />}
@@ -224,6 +226,9 @@ export function MyWork() {
         </div>
       </div>
 
+      <TaskDrawer task={openTask} onClose={() => openTaskCard(null)} />
+
+
       <NewTask
         open={newOpen}
         onClose={() => setNewOpen(false)}
@@ -239,19 +244,32 @@ export function MyWork() {
   );
 }
 
-function TaskCard({ task, assigneeName, showAssignee }: { task: Task; assigneeName: string; showAssignee: boolean }) {
+function TaskCard({ task, assigneeName, showAssignee, project, onOpen }: {
+  task: Task; assigneeName: string; showAssignee: boolean; project?: { id: string; code: string; name: string }; onOpen: () => void;
+}) {
   const days = daysUntil(task.dueDate);
   const status = findOption(TASK_STATUS, task.status);
-  const link = task.refType && task.refId ? REF_LINK[task.refType]?.(task.refId) : null;
+  const link = task.refType && task.refId && task.refType !== 'project' ? REF_LINK[task.refType]?.(task.refId) : null;
+  // A click opens the task; a drag (pointer moved before release) does not.
+  const pressed = useRef<{ x: number; y: number } | null>(null);
 
   return (
-    <div>
+    <div
+      style={{ cursor: 'pointer' }}
+      onPointerDown={(e) => { pressed.current = { x: e.clientX, y: e.clientY }; }}
+      onClick={(e) => { const s = pressed.current; pressed.current = null; if (s && Math.hypot(e.clientX - s.x, e.clientY - s.y) > 5) return; onOpen(); }}
+      onKeyDown={(e) => { if (e.key === 'Enter') onOpen(); }}
+      role="button"
+      tabIndex={0}
+      aria-label={`Open task ${task.title}`}
+    >
       <div className="board-card-accent" data-tone={status.tone} />
       <div className="board-card-title">{task.title}</div>
       {task.description && <div className="cell-sub" style={{ marginTop: 4 }}>{task.description}</div>}
+      {project && <div style={{ marginTop: 6 }}><ProjectLink id={project.id} code={project.code} name={project.name} /></div>}
       <div className="board-card-foot">
         {task.priority !== 'normal' && <StatusBadge list={PRIORITIES} value={task.priority} dot={false} />}
-        {link && <Link to={link} className="cell-sub row-tight"><Icon name="link" size={11} /> linked</Link>}
+        {link && <Link to={link} className="cell-sub row-tight" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}><Icon name="link" size={11} /> {task.refLabel || 'linked'}</Link>}
         <span className="spacer" />
         {showAssignee && <Avatar name={assigneeName} size="sm" />}
         {task.dueDate && (

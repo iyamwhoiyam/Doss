@@ -32,6 +32,18 @@ function syncProductLinks(db, collection, row, ctx) {
     const project = db.get('projects', row.projectId);
     if (project && !project.formulaId) db.update('projects', project.id, { formulaId: row.id }, ctx);
   }
+  // An order or a batch belongs to the product's project: fill it in from the
+  // quote or formula it was made from, so SO# and MO# always show on the project.
+  if (collection === 'salesOrders' && !row.projectId) {
+    const quote = row.quoteId ? db.get('quotes', row.quoteId) : null;
+    const formula = quote?.formulaId ? db.get('formulas', quote.formulaId) : row.lines?.[0]?.formulaId ? db.get('formulas', row.lines[0].formulaId) : null;
+    const projectId = quote?.projectId || formula?.projectId || '';
+    if (projectId) db.update('salesOrders', row.id, { projectId }, ctx);
+  }
+  if (collection === 'workOrders' && !row.projectId && row.formulaId) {
+    const formula = db.get('formulas', row.formulaId);
+    if (formula?.projectId) db.update('workOrders', row.id, { projectId: formula.projectId }, ctx);
+  }
   // A formula and the item it produces reference each other too.
   if (collection === 'formulas' && row.producesItemId) {
     const item = db.get('items', row.producesItemId);

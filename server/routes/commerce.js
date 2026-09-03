@@ -184,9 +184,10 @@ export function commerceRouter(db) {
     const created = db.transaction((tx) => {
       const formula = withLivePricing(db, tx.getOrFail('formulas', req.body.formulaId));
       const tiers = req.body.tiers?.length ? req.body.tiers : defaultTiers(formula.format);
-      const customer = req.body.customerId
-        ? tx.get('customers', req.body.customerId)
-        : formula.customerId ? tx.get('customers', formula.customerId) : null;
+      // The customer comes from the request, else the formula, else the project the formula belongs to.
+      const project = formula.projectId ? tx.get('projects', formula.projectId) : null;
+      const customerId = req.body.customerId || formula.customerId || project?.customerId || '';
+      const customer = customerId ? tx.get('customers', customerId) : null;
       const quoteNumber = tx.nextSequence('QUOTE', 'Q-{yyyy}-{n:4}');
       const coaFee = num(req.body.coaFee ?? setting('quote.coaFee', 120), 120);
 
@@ -303,13 +304,17 @@ export function commerceRouter(db) {
 
       const unitPrice = Number(tier.salePricePerUnit);
       const subtotal = Number((unitPrice * qty).toFixed(2));
+      const project = quote.projectId ? tx.get('projects', quote.projectId) : null;
+      const customerId = quote.customerId || project?.customerId || '';
+      if (!customerId) throw new HttpError(422, 'This quote has no customer — set one on the quote or its project before raising an order');
       return tx.insert('salesOrders', {
         orderNumber: tx.nextSequence('SO', 'SO-{yyyy}-{n:4}'),
-        customerId: quote.customerId,
+        customerId,
         status: 'confirmed',
         priority: req.body.priority ?? 'normal',
         customerPo: req.body.customerPo ?? '',
         quoteId: quote.id,
+        projectId: quote.projectId || tx.get('formulas', quote.formulaId)?.projectId || '',
         ownerId: quote.ownerId || req.user.id,
         lines: [{ formulaId: quote.formulaId, description: quote.title, qty, uom: 'ea', unitPrice, shipped: 0 }],
         subtotal,

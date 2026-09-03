@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { PageHeader } from '../components/Shell';
@@ -17,7 +17,7 @@ import { useViewing } from '../lib/realtime';
 import { useCustomers, useUsers } from '../lib/lookups';
 import { date, relative } from '../lib/format';
 import { HEALTH, PRIORITIES, PROJECT_STAGES, PROJECT_TYPES, findOption } from '@shared/domain';
-import type { Project } from '../lib/types';
+import type { Project, SalesOrder, WorkOrder } from '../lib/types';
 
 export function Development() {
   const navigate = useNavigate();
@@ -38,6 +38,16 @@ export function Development() {
   const [newOpen, setNewOpen] = useState(false);
 
   const { data, isLoading } = useList<Project>('projects', { sort: 'boardOrder', limit: 500 });
+  // The reference numbers on every card: the orders and batches behind each project.
+  const { data: orders } = useList<SalesOrder>('salesOrders', { limit: 500, select: ['id', 'orderNumber', 'projectId', 'status', 'customerPo'] });
+  const { data: batches } = useList<WorkOrder>('workOrders', { limit: 500, select: ['id', 'woNumber', 'projectId', 'formulaId', 'stage'] });
+  const numbersFor = useMemo(() => {
+    const so = new Map<string, { id: string; number: string }[]>();
+    for (const o of orders?.rows ?? []) if (o.projectId) so.set(o.projectId, [...(so.get(o.projectId) ?? []), { id: o.id, number: o.orderNumber }]);
+    const mo = new Map<string, { id: string; number: string }[]>();
+    for (const b of batches?.rows ?? []) if (b.projectId) mo.set(b.projectId, [...(mo.get(b.projectId) ?? []), { id: b.id, number: b.woNumber }]);
+    return (p: Project) => ({ so: so.get(p.id) ?? [], mo: mo.get(p.id) ?? [] });
+  }, [orders, batches]);
 
   const projects = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -92,6 +102,7 @@ export function Development() {
       <div><div className="cell-primary">{row.name}</div><ProjectLink id={row.id} code={row.code} /></div>
     ) },
     { key: 'customer', header: 'Customer', sortValue: (row) => customers.name(row.customerId), render: (row) => customers.name(row.customerId) },
+    { key: 'numbers', header: 'SO# / MO#', render: (row) => <RefNumbers {...numbersFor(row)} /> },
     { key: 'stage', header: 'Stage', sortValue: (row) => row.stage, render: (row) => <StatusBadge list={PROJECT_STAGES} value={row.stage} /> },
     { key: 'type', header: 'Type', sortValue: (row) => row.type, render: (row) => <StatusBadge list={PROJECT_TYPES} value={row.type} dot={false} /> },
     { key: 'health', header: 'Health', sortValue: (row) => row.health, render: (row) => <StatusBadge list={HEALTH} value={row.health} /> },
@@ -150,6 +161,7 @@ export function Development() {
               project={project}
               customerName={customers.name(project.customerId)}
               ownerName={users.name(project.ownerId)}
+              numbers={numbersFor(project)}
               onOpen={() => navigate(`/development/${project.id}`)}
             />
           )}
@@ -171,8 +183,20 @@ export function Development() {
   );
 }
 
-function ProjectCard({ project, customerName, ownerName, onOpen }: {
-  project: Project; customerName: string; ownerName: string; onOpen: () => void;
+/** SO# and MO# chips — each opens its record without opening the project. */
+function RefNumbers({ so, mo }: { so: { id: string; number: string }[]; mo: { id: string; number: string }[] }) {
+  if (!so.length && !mo.length) return <span className="faint">—</span>;
+  const stop = (e: React.SyntheticEvent) => e.stopPropagation();
+  return (
+    <span className="row-wrap" style={{ gap: 4 }}>
+      {so.map((o) => <Link key={o.id} to={`/orders/${o.id}`} className="ref-chip" data-kind="so" onClick={stop} onPointerDown={stop} title="Sales order">{o.number}</Link>)}
+      {mo.map((b) => <Link key={b.id} to={`/production/${b.id}`} className="ref-chip" data-kind="mo" onClick={stop} onPointerDown={stop} title="Manufacturing order (batch)">{b.number}</Link>)}
+    </span>
+  );
+}
+
+function ProjectCard({ project, customerName, ownerName, numbers, onOpen }: {
+  project: Project; customerName: string; ownerName: string; numbers: { so: { id: string; number: string }[]; mo: { id: string; number: string }[] }; onOpen: () => void;
 }) {
   const stage = findOption(PROJECT_STAGES, project.stage);
   const openGates = project.gateChecks.filter((gate) => gate.gate === project.stage && !gate.passed);
@@ -209,6 +233,10 @@ function ProjectCard({ project, customerName, ownerName, onOpen }: {
       <div style={{ marginTop: 'var(--s-3)' }}>
         <Meter value={project.progress} tone={stage.tone} />
       </div>
+
+      {(numbers.so.length > 0 || numbers.mo.length > 0) && (
+        <div style={{ marginTop: 6 }}><RefNumbers {...numbers} /></div>
+      )}
 
       {nextMilestone && (
         <div className="cell-sub" style={{ marginTop: 6 }}>
