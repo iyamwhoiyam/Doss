@@ -6,3 +6,6 @@ dist/
 .DS_Store
 *.log
 .vite/
+
+# Runtime file-system database (created on first boot, seeded from server/data)
+/data/

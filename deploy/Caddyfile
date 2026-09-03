@@ -1,0 +1,17 @@
+# One site, driven by the SITE_ADDRESS environment variable.
+#
+#   SITE_ADDRESS=:80                     plain HTTP on the server's IP
+#   SITE_ADDRESS=ops.enovascience.com    automatic HTTPS via Let's Encrypt
+#
+# When SITE_ADDRESS is a real hostname, Caddy obtains and renews the TLS
+# certificate on its own — there is nothing else to configure.
+
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	# flush_interval -1 disables response buffering so the Server-Sent Events
+	# stream (live sync + presence) reaches the browser the instant it is written.
+	reverse_proxy app:4000 {
+		flush_interval -1
+	}
+}

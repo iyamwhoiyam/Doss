@@ -1,0 +1,330 @@
+[
+ {
+  "id": 1,
+  "row": 6,
+  "cat": "Principal Display Panel (PDP)",
+  "text": "Brand and product name clearly visible.",
+  "needs": "art",
+  "look": "Look at the PDP: is the brand and product name legible at print size?"
+ },
+ {
+  "id": 2,
+  "row": 7,
+  "cat": "Principal Display Panel (PDP)",
+  "text": "Statement of identity (\u201cDietary Supplement\u201d) present and prominently displayed.",
+  "needs": "art",
+  "look": "Per the Enova guideline the statement of identity must appear in a size reasonably similar to the largest print on the panel. Compare it on the artwork."
+ },
+ {
+  "id": 3,
+  "row": 8,
+  "cat": "Principal Display Panel (PDP)",
+  "text": "Net quantity of contents correct in value and unit of measure.",
+  "needs": "copy",
+  "look": ""
+ },
+ {
+  "id": 4,
+  "row": 9,
+  "cat": "Principal Display Panel (PDP)",
+  "text": "Net quantity of contents in correct location.",
+  "needs": "art",
+  "look": "Per the Enova guideline the net quantity must sit in the bottom third of the PDP. Check its position on the artwork."
+ },
+ {
+  "id": 5,
+  "row": 10,
+  "cat": "Supplement Facts Panel (SFP)",
+  "text": "SFP located to the immediate right of the PDP.",
+  "needs": "art",
+  "look": "Check the SFP sits immediately to the right of the PDP."
+ },
+ {
+  "id": 6,
+  "row": 11,
+  "cat": "Supplement Facts Panel (SFP)",
+  "text": "Font is correct size and type.",
+  "needs": "art",
+  "look": "Type size is measured from the artwork; the typeface is not. Confirm the face and weight match the approved panel."
+ },
+ {
+  "id": 7,
+  "row": 12,
+  "cat": "Supplement Facts Panel (SFP)",
+  "text": "\u201cSupplement Facts\u201d title bold and full width of the panel.",
+  "needs": "art",
+  "look": "Check the \u201cSupplement Facts\u201d title is bold and runs the full width of the panel."
+ },
+ {
+  "id": 8,
+  "row": 13,
+  "cat": "Supplement Facts Panel (SFP)",
+  "text": "Serving Size correct value and unit of measure.",
+  "needs": "copy",
+  "look": ""
+ },
+ {
+  "id": 9,
+  "row": 14,
+  "cat": "Supplement Facts Panel (SFP)",
+  "text": "Servings per container accurate according to MF and net quantity of contents.",
+  "needs": "copy",
+  "look": ""
+ },
+ {
+  "id": 10,
+  "row": 15,
+  "cat": "Supplement Facts Panel (SFP)",
+  "text": "Hairlines used to separate nutrients and ingredients. Hairlines span the entire width of the panel.",
+  "needs": "art",
+  "look": "Check every hairline spans the entire width of the panel and none stops short."
+ },
+ {
+  "id": 11,
+  "row": 16,
+  "cat": "Supplement Facts Panel (SFP)",
+  "text": "Bold hairlines used where required.",
+  "needs": "art",
+  "look": "Check the bold hairlines are present where the format requires them."
+ },
+ {
+  "id": 12,
+  "row": 17,
+  "cat": "Supplement Facts Panel (SFP)",
+  "text": "Nutrients listed in the correct order.",
+  "needs": "copy",
+  "look": ""
+ },
+ {
+  "id": 13,
+  "row": 18,
+  "cat": "Supplement Facts Panel (SFP)",
+  "text": "Nutrients are properly declared.",
+  "needs": "copy",
+  "look": ""
+ },
+ {
+  "id": 14,
+  "row": 19,
+  "cat": "Supplement Facts Panel (SFP)",
+  "text": "Nutrient quantities properly declared and match values in MF.",
+  "needs": "file",
+  "look": "Compare every amount per serving against the Master Formula. The label cannot prove this to itself."
+ },
+ {
+  "id": 15,
+  "row": 20,
+  "cat": "Supplement Facts Panel (SFP)",
+  "text": "Nutrient unit of measure correct.",
+  "needs": "copy",
+  "look": ""
+ },
+ {
+  "id": 16,
+  "row": 21,
+  "cat": "Supplement Facts Panel (SFP)",
+  "text": "Nutrients are declared above minimum reportable quantities and presented in appropriate increment units.",
+  "needs": "copy",
+  "look": ""
+ },
+ {
+  "id": 17,
+  "row": 22,
+  "cat": "Supplement Facts Panel (SFP)",
+  "text": "Nutrient Percent Daily Values are provided and accurate.",
+  "needs": "copy",
+  "look": ""
+ },
+ {
+  "id": 18,
+  "row": 23,
+  "cat": "Supplement Facts Panel (SFP)",
+  "text": "Proprietary blends are listed and formatted correctly.",
+  "needs": "copy",
+  "look": ""
+ },
+ {
+  "id": 19,
+  "row": 24,
+  "cat": "Supplement Facts Panel (SFP)",
+  "text": "Proprietary blends amount per serving correct and % DV properly footnoted.",
+  "needs": "copy",
+  "look": ""
+ },
+ {
+  "id": 20,
+  "row": 25,
+  "cat": "Supplement Facts Panel (SFP)",
+  "text": "Dietary ingredients listed correctly with correct amount per serving and % DV properly footnoted.",
+  "needs": "copy",
+  "look": ""
+ },
+ {
+  "id": 21,
+  "row": 26,
+  "cat": "Supplement Facts Panel (SFP)",
+  "text": "Botanical extracts are properly referenced.",
+  "needs": "copy",
+  "look": ""
+ },
+ {
+  "id": 22,
+  "row": 27,
+  "cat": "Ingredient List",
+  "text": "Other ingredients are accurate with the MF and ingredients are listed in descending concentration.",
+  "needs": "file",
+  "look": "Compare the Other Ingredients declaration against the Master Formula, including descending order of concentration."
+ },
+ {
+  "id": 23,
+  "row": 28,
+  "cat": "Ingredient List",
+  "text": "Other ingredients are declared immediately following the SFP.",
+  "needs": "art",
+  "look": "Check the Other Ingredients declaration falls immediately below the SFP."
+ },
+ {
+  "id": 24,
+  "row": 29,
+  "cat": "Ingredient List",
+  "text": "Ingredients that are used as preservatives and those use as colorants are properly identified.",
+  "needs": "copy",
+  "look": ""
+ },
+ {
+  "id": 25,
+  "row": 30,
+  "cat": "Allergen Disclosure",
+  "text": "If the product contains an allergen, it is properly declared.",
+  "needs": "copy",
+  "look": ""
+ },
+ {
+  "id": 26,
+  "row": 31,
+  "cat": "Allergen Disclosure",
+  "text": "The allergen statement, if required, immediately follows the ingredient declaration.",
+  "needs": "art",
+  "look": "Check the allergen statement falls immediately after the ingredient declaration."
+ },
+ {
+  "id": 27,
+  "row": 32,
+  "cat": "Manufacturer/Distributor Information",
+  "text": "Distributor statement is present and contains a physical street address. Company email, website, and phone number are optional.",
+  "needs": "copy",
+  "look": ""
+ },
+ {
+  "id": 28,
+  "row": 33,
+  "cat": "Manufacturer/Distributor Information",
+  "text": "The distributor statement immediately follows the ingredient declaration or the allergen statement.",
+  "needs": "art",
+  "look": "Check the distributor statement follows the ingredient or allergen declaration \u2014 not, for example, tucked under the barcode."
+ },
+ {
+  "id": 29,
+  "row": 34,
+  "cat": "Directions for Use",
+  "text": "Suggested use is present and appropriate for the product.",
+  "needs": "copy",
+  "look": ""
+ },
+ {
+  "id": 30,
+  "row": 35,
+  "cat": "Directions for Use",
+  "text": "The amount provided in the suggested use is consistent with the amount per serving of the SFP.",
+  "needs": "copy",
+  "look": ""
+ },
+ {
+  "id": 31,
+  "row": 36,
+  "cat": "Caution/Warning Statements",
+  "text": "Mandatory warnings are present and appropriate where applicable (e.g., for iron: accidental overdose warning).",
+  "needs": "copy",
+  "look": ""
+ },
+ {
+  "id": 32,
+  "row": 37,
+  "cat": "Caution/Warning Statements",
+  "text": "General cautions (e.g. pregnancy, keep out of reach of children, consult a physician, storage requirements. etc.) are present and appropriate where applicable.",
+  "needs": "copy",
+  "look": ""
+ },
+ {
+  "id": 33,
+  "row": 38,
+  "cat": "Caution/Warning Statements",
+  "text": "FDA warning is present, accurate and enclosed in a box border.",
+  "needs": "art",
+  "look": "The wording can be checked from the copy; the box border cannot. Confirm the disclaimer is enclosed in a box on the artwork."
+ },
+ {
+  "id": 34,
+  "row": 39,
+  "cat": "Claims",
+  "text": "Structure/Function Claims are truthful, appropriate, non-misleading, and substantiated.",
+  "needs": "file",
+  "look": "Confirm each structure/function claim is covered by substantiation held on file, and that FDA notification was made within 30 days of first marketing."
+ },
+ {
+  "id": 35,
+  "row": 40,
+  "cat": "Claims",
+  "text": "Qualified Health Claims are properly qualified and appropriate.",
+  "needs": "copy",
+  "look": ""
+ },
+ {
+  "id": 36,
+  "row": 41,
+  "cat": "Other",
+  "text": "Certifications are properly declared (proper logo, placement, etc.).",
+  "needs": "art",
+  "look": "Check each certification mark is the correct logo, correctly placed, and that the certification is current."
+ },
+ {
+  "id": 37,
+  "row": 42,
+  "cat": "Other",
+  "text": "Trademarked ingredients are declared and referenced as required by TMLA.",
+  "needs": "file",
+  "look": "Check the trademark licence agreement for each branded ingredient and confirm the reference on the label matches the wording the agreement requires."
+ },
+ {
+  "id": 38,
+  "row": 43,
+  "cat": "Other",
+  "text": "UPC code is present where applicable and properly formatted.",
+  "needs": "copy",
+  "look": ""
+ },
+ {
+  "id": 39,
+  "row": 44,
+  "cat": "Other",
+  "text": "No intervening or overlapping material between required elements.",
+  "needs": "art",
+  "look": "Check nothing overlaps or intervenes between the required elements at print size."
+ },
+ {
+  "id": 40,
+  "row": 45,
+  "cat": "Other",
+  "text": "Language is appropriate with accurate spelling and grammar.",
+  "needs": "art",
+  "look": "Read the artwork for spelling and grammar. OCR substitutes letters, so a reading of the copy cannot settle this."
+ },
+ {
+  "id": 41,
+  "row": 46,
+  "cat": "Other",
+  "text": "Label revision is present on the bottom of the left side panel.",
+  "needs": "art",
+  "look": "Check the revision code is printed on the bottom of the LEFT side panel, in the Enova format (Rev. # - MM/YY)."
+ }
+]

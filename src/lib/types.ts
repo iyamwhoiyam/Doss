@@ -1,261 +1,454 @@
-/* Hand-written types for the slice of `enova-brain` this app touches.
-   Kept narrow on purpose: the database has 70+ tables and generating all of
-   them buries the ones that matter. */
+/** Record shapes returned by the API. Kept close to the server schema. */
 
-export type EmployeeRole =
-  | 'executive'
-  | 'product_development'
-  | 'rd_scientist'
-  | 'lab_technician'
-  | 'lab_manager'
-  | 'qc_specialist'
-  | 'production_manager'
-  | 'product_specialist'
-  | 'admin';
-
-export interface Employee {
+export interface BaseRecord {
   id: string;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
+  updatedBy: string;
+  version: number;
+  deletedAt: string | null;
+}
+
+export interface User extends BaseRecord {
+  email: string;
   name: string;
-  role: EmployeeRole;
-  email: string;
-  active: boolean;
-  created_at: string | null;
-}
-
-export interface StudioRole {
-  email: string;
+  initials: string;
   role: string;
-  updated_at: string | null;
-}
-
-/** erp_gate_catalog — the 23 gates that make up an order's lifecycle. */
-export interface GateCatalogRow {
-  gate_key: string;
-  gate_order: number;
-  stage_no: number;
-  stage_name: string;
+  title: string;
   department: string;
-  owner_role: string | null;
+  phone: string;
+  active: boolean;
+  accentColor: string;
+  mustChangePassword: boolean;
+  lastLoginAt: string | null;
+  preferences: { theme?: 'dark' | 'light'; density?: 'comfortable' | 'compact'; sidebarCollapsed?: boolean };
 }
 
-export type GateStatus = 'done' | 'in_progress' | 'blocked';
+export interface Contact { name: string; title?: string; email?: string; phone?: string; primary?: boolean }
+export interface Address { line1?: string; line2?: string; city?: string; state?: string; postalCode?: string; country?: string }
 
-export interface OrderGate {
-  id: number;
-  order_ref: string;
-  gate_key: string;
-  gate_order: number | null;
-  stage_no: number | null;
-  stage_name: string | null;
-  department: string | null;
-  owner: string | null;
-  status: GateStatus | null;
-  status_date: string | null;
-  note: string | null;
+export interface Customer extends BaseRecord {
+  defaultMargin?: number; laborRateFactor?: number;
+  code: string; name: string; status: string; tier: string; industry: string; website: string;
+  ownerId: string; paymentTerms: string; creditLimit: number;
+  billingAddress: Address; shippingAddress: Address; contacts: Contact[];
+  logoTint: string; notes: string; tags: string[];
 }
 
-export interface ProductionOrder {
-  id: number;
-  ref: string;
-  customer: string | null;
-  abbr: string | null;
-  is_domestic: boolean | null;
-  product: string | null;
-  sales_rep: string | null;
-  project_pn: string | null;
-  customer_po: string | null;
-  so_no: string | null;
-  mo_refs: string | null;
-  amount: number | null;
-  unit_price: number | null;
-  qty: number | null;
-  unit: string | null;
-  contract_date: string | null;
-  delivery_date: string | null;
-  stage: number | null;
-  stage_name: string | null;
-  status: string | null;
-  pct: number | null;
-  blocked: boolean | null;
-  next_gate: string | null;
-  next_stage: number | null;
-  next_owner: string | null;
-  next_dept: string | null;
-  deposit_received: boolean | null;
-  final_received: boolean | null;
-  docs_outstanding: string[] | null;
-  order_issues: string | null;
-  priority: string | null;
-  tags: string[] | null;
-  created_at: string | null;
-  updated_at: string | null;
+export interface Vendor extends BaseRecord {
+  code: string; name: string; status: string; category: string; website: string;
+  contacts: Contact[]; address: Address; leadTimeDays: number; paymentTerms: string; minimumOrder: number;
+  qualification: { auditedAt?: string | null; expiresAt?: string | null; certifications?: string[]; questionnaireOnFile?: boolean };
+  rating: { quality?: number; delivery?: number; responsiveness?: number };
+  buyerId: string; notes: string; tags: string[];
 }
 
-export interface Project {
-  pn: string;
-  customer_id: string | null;
-  customer_name: string | null;
-  product: string | null;
-  dosage_form: string | null;
-  is_bulk: boolean | null;
-  stage: string | null;
-  pm: string | null;
-  rep: string | null;
-  date_received: string | null;
-  servings_per_unit: number | null;
-  serving_size: string | null;
-  batch_units: number | null;
-  moq: number | null;
-  overage: number | null;
-  material_loss: number | null;
-  revision: number | null;
-  mfso_signed: boolean | null;
-  archived: boolean | null;
-  keep_active: boolean | null;
-  keep_visible: boolean | null;
-  notes: string | null;
-  updated_at: string | null;
-  bid_priced: boolean | null;
-  has_formula: boolean | null;
+export interface Item extends BaseRecord {
+  itemCode: string; name: string; type: string; category: string; form: string; uom: string;
+  costPerUom: number; pricePerKg: number; priceSource: string;
+  reorderPoint: number; reorderQty: number; safetyStock: number; leadTimeDays: number;
+  defaultVendorId: string; defaultLocationId: string; shelfLifeDays: number; storageConditions: string;
+  allergens: string[]; isBranded: boolean; brandOwner: string; labelName: string;
+  requiresCoa: boolean; active: boolean; notes: string; tags: string[];
 }
 
-export interface ProjectIngredient {
-  id: number;
-  pn: string;
-  line_no: number | null;
-  name: string | null;
-  sku: string | null;
-  input_mg: number | null;
-  potency_pct: number | null;
-  overage: number | null;
-  ai_suggested: boolean | null;
-  matched: boolean | null;
+export interface InventoryAlert { kind: string; severity: 'danger' | 'warning' | 'info'; message: string; suggestion: string }
+
+export interface ItemPosition extends Item {
+  onHand: number; released: number; quarantined: number; onHold: number; onOrder: number;
+  lotCount: number; value: number; nextExpiry: string | null; alerts: InventoryAlert[];
 }
 
-export interface ProjectTier {
-  id: number;
-  pn: string;
-  units: number | null;
-  price: number | null;
-  margin: number | null;
+export interface Lot extends BaseRecord {
+  lotNumber: string; itemId: string; vendorId: string; vendorLot: string;
+  purchaseOrderId: string; workOrderId: string; status: string;
+  qtyReceived: number; qtyOnHand: number; uom: string; locationId: string; unitCost: number;
+  receivedAt: string | null; manufacturedAt: string | null; expiresAt: string | null; retestAt: string | null;
+  coaDocumentId: string; coaReceived: boolean;
+  testResults: { test: string; method?: string; spec?: string; result?: string; pass?: boolean }[];
+  dispositionBy: string; dispositionAt: string | null; notes: string;
 }
 
-export interface ProjectCost {
-  pn: string;
-  cogs_per_unit: number | null;
-  materials_cpu: number | null;
-  active_cpu: number | null;
-  base_cpu: number | null;
-  shell_cpu: number | null;
-  pkg_cpu: number | null;
-  labor_per_unit: number | null;
-  overhead_cpu: number | null;
-  overhead_pct: number | null;
-  source: string | null;
+export interface Location extends BaseRecord {
+  code: string; name: string; type: string; parentId: string;
+  temperatureControlled: boolean; capacity: number; active: boolean; notes: string;
 }
 
-export interface ProjectConfidence {
-  pn: string;
-  n_lines: number | null;
-  n_priced: number | null;
-  n_unpriced: number | null;
-  materials_known: number | null;
-  exposure_usd: number | null;
-  cogs: number | null;
-  exposure_pct_cogs: number | null;
-  lead_price: number | null;
-  margin_usd: number | null;
-  exposure_pct_margin: number | null;
-  confidence: 'GREEN' | 'AMBER' | 'RED' | string | null;
-  verdict: string | null;
-  unpriced_skus: unknown;
-  computed_at: string | null;
+export interface InventoryTxn extends BaseRecord {
+  txnNumber: string; type: string; itemId: string; lotId: string; qty: number; uom: string;
+  fromLocationId: string; toLocationId: string; refType: string; refId: string;
+  reason: string; unitCost: number; balanceAfter: number; performedAt: string | null;
 }
 
-export interface StageHistoryRow {
-  id: number;
-  pn: string;
-  from_stage: string | null;
-  to_stage: string | null;
-  actor: string | null;
-  ts: string | null;
+export interface PurchaseOrderLine {
+  itemId: string; itemCode?: string; description: string; qty: number; uom: string;
+  unitCost: number; received: number; expectedDate: string | null; lotIds: string[];
 }
 
-export type FlagSeverity = 'error' | 'warn' | 'review';
-export type FlagStatus = 'open' | 'resolved' | 'dismissed';
-
-export interface DataQualityFlag {
-  id: number;
-  source_table: string | null;
-  source_ref: string | null;
-  field: string | null;
-  observed_value: string | null;
-  suggested_value: string | null;
-  severity: FlagSeverity | null;
-  reason: string | null;
-  status: FlagStatus | null;
-  flagged_by: string | null;
-  created_at: string | null;
-  resolved_at: string | null;
-  resolved_by: string | null;
+export interface PurchaseOrder extends BaseRecord {
+  poNumber: string; vendorId: string; status: string; buyerId: string;
+  lines: PurchaseOrderLine[]; subtotal: number; freight: number; tax: number; total: number; currency: string;
+  orderedAt: string | null; expectedAt: string | null; receivedAt: string | null;
+  approvedBy: string; approvedAt: string | null; terms: string; shipTo: string; notes: string;
 }
 
-export interface InventoryItem {
-  sku: string;
-  description: string | null;
-  uom: string | null;
-  category: string | null;
-  unit_cost: number | null;
-  on_hand: number | null;
-  potency_pct: number | null;
-  source: string | null;
-  supplier: string | null;
-  updated_at: string | null;
+export interface SalesOrderLine {
+  formulaId: string; description: string; qty: number; uom: string; unitPrice: number; shipped: number;
 }
 
-export interface Customer {
-  id: string;
-  name: string | null;
-  created_at: string | null;
+export interface SalesOrder extends BaseRecord {
+  projectId?: string;
+  orderNumber: string; customerId: string; status: string; priority: string; customerPo: string;
+  quoteId: string; ownerId: string; lines: SalesOrderLine[];
+  subtotal: number; freight: number; total: number;
+  requestedShipDate: string | null; promisedShipDate: string | null; shippedAt: string | null;
+  notes: string; tags: string[];
 }
 
-export interface Shipment {
-  id: number;
-  order_ref: string | null;
-  customer: string | null;
-  ship_date: string | null;
-  description: string | null;
-  boxes: number | null;
-  units_per_box: number | null;
-  total_units: number | null;
-  tracking: string | null;
-  shipping_cost: number | null;
-  units_ordered: number | null;
-  balance: number | null;
-  notes: string | null;
+export interface Shipment extends BaseRecord {
+  shipmentNumber: string; salesOrderId: string; customerId: string; status: string;
+  carrier: string; service: string; trackingNumber: string; cartons: number; weightLb: number; cost: number;
+  lines: { description: string; qty: number }[]; shippedAt: string | null; deliveredAt: string | null; notes: string;
 }
 
-export interface ActivityRow {
-  id: number;
-  ts: string | null;
-  actor: string | null;
-  actor_email: string | null;
-  entity: string | null;
-  entity_ref: string | null;
-  action: string | null;
-  detail: string | null;
+export interface DocumentVersion {
+  version: number; filename: string; fileId: string; size: number; mime: string;
+  uploadedBy: string; uploadedAt: string; notes: string; placeholder?: boolean;
 }
 
-export interface FormulaBlueprint {
-  id: number;
-  name: string | null;
-  dosage_form: string | null;
-  indication: string | null;
-  servings: number | null;
-  source_kind: string | null;
-  source_pn: string | null;
-  status: string | null;
-  created_by: string | null;
-  approved_by: string | null;
-  approved_at: string | null;
+export interface Doc extends BaseRecord {
+  name: string; category: string; status: string; ownerType: string; ownerId: string;
+  customerId: string; vendorId: string; currentVersion: number; versions: DocumentVersion[];
+  effectiveDate: string | null; expiresAt: string | null;
+  reviewerId: string; approvedBy: string; approvedAt: string | null;
+  confidential: boolean; description: string; tags: string[];
+  ownerName?: string; latest?: DocumentVersion | null; daysUntilExpiry?: number | null;
+}
+
+export interface Milestone { name: string; due: string | null; done: boolean; doneAt: string | null }
+export interface GateCheck { gate: string; label: string; passed: boolean; by?: string }
+export interface Requirement { label: string; met: boolean }
+export interface Risk { label: string; severity: string; owner?: string }
+
+export interface Project extends BaseRecord {
+  code: string; name: string; customerId: string; stage: string; type: string;
+  priority: string; health: string; ownerId: string; teamIds: string[];
+  formulaId: string; quoteId: string; format: string; targetLaunch: string | null;
+  brief: string; requirements: Requirement[]; milestones: Milestone[];
+  gateChecks: GateCheck[]; risks: Risk[]; progress: number;
+  boardOrder: number; stageEnteredAt: string | null; tags: string[]; notes: string;
+  lockState?: 'open' | 'pending_approval' | 'locked';
+  productRevision?: number;
+  approval?: ProductApproval;
+  approvalHistory?: ProductApproval[];
+  approvalToken?: string;
+  approvalRequestedAt?: string | null;
+}
+
+export interface Rfq extends BaseRecord {
+  rfqNumber: string; status: string; productName: string;
+  customerId: string; customerName: string; contactName: string; contactEmail: string;
+  source: string; format: string; servingSize: string; desiredActives: string;
+  targetQty: number; targetPrice: number; priority: string; dueDate: string | null;
+  ownerId: string; projectId: string; formulaId: string; quoteId: string;
+  outcome: string; lostReason: string; boardOrder: number; stageEnteredAt: string | null;
+  notes: string; tags: string[];
+}
+
+export interface Sample extends BaseRecord {
+  sampleNumber: string; type: string; status: string; productName: string;
+  projectId: string; customerId: string; formulaId: string;
+  lotId: string; lotNumber: string; quantity: number; uom: string;
+  recipientName: string; recipientCompany: string; shipTo: string;
+  carrier: string; trackingNumber: string; requestedById: string; ownerId: string;
+  requestedAt: string | null; shippedAt: string | null; deliveredAt: string | null;
+  dueBy: string | null; respondedAt: string | null; outcome: string; feedback: string;
+  boardOrder: number; stageEnteredAt: string | null; notes: string; tags: string[];
+}
+
+export interface ProductApproval {
+  decision: string; method: string; signedName: string; signedTitle?: string;
+  note?: string; evidenceDocId?: string; byUserId?: string; byName?: string;
+  at: string; revision: number;
+}
+
+export interface IngredientLine {
+  itemId: string | null; code: string; name: string; form?: string;
+  targetMg?: number | null; inputMg?: number | null; isBaseFill?: boolean;
+  pricePerKg: number; priceSource: string;
+  labelClaim?: number | null; labelUnit?: string | null; brandOwner?: string;
+}
+
+export interface PackagingLine { itemId: string | null; code: string; name: string; costPerUnit: number; priceSource: string }
+export interface ServiceLine { name: string; costPerUnit: number; basis?: string }
+
+export interface Formula extends BaseRecord {
+  code: string; name: string; revision: number; status: string; supersedesId: string;
+  customerId: string; projectId: string; format: string; isBulk: boolean;
+  servingSize: string; servingsPerUnit: number; unitsPerBatch: number;
+  totalFormatWeightMg: number; capsuleShellSize: string; overagePct: number; routingId?: string;
+  actives: IngredientLine[]; excipients: IngredientLine[];
+  packaging: PackagingLine[]; services: ServiceLine[];
+  allergens: string[]; claims: string[];
+  ownerId: string; approvedBy: string; approvedAt: string | null; notes: string; tags: string[];
+}
+
+export interface LaborLine { label: string; perUnit: number; minutes?: number; crew?: number; rate?: number; costPerBatch?: number; workCenter?: string }
+
+export interface TierLabor {
+  blendingPer1000?: number; fillPer1000?: number; encapsulationPer1000?: number;
+  depositPer1000?: number; compressionPer1000?: number; packagingPer1000?: number;
+  qcPctOfProduction?: number;
+  // Explicit labour lines (from the routing or actual batches) override the bands.
+  lines?: LaborLine[]; source?: 'routing' | 'actual' | 'bands' | 'manual';
+}
+
+export type LaborMode = 'routing' | 'actual' | 'bands' | 'manual';
+
+export interface QuoteTierInput {
+  qty: number; labor: TierLabor; overheadRate: number; margin: number | null;
+  laborMode?: LaborMode;
+  // A price typed in directly; the margin is read back from it.
+  priceOverride?: number | null;
+}
+
+export interface LabourOptions {
+  qty: number; bulkAllowed: boolean;
+  routing: { source: 'routing'; routingId: string; routingCode: string; qty: number; minutes: number; totalPerBatch: number; perUnit: number; lines: LaborLine[] } | null;
+  actual: { source: 'actual'; batches: number; units: number; cost: number; perUnit: number; minutesPerUnit: number; lastBatch: string } | null;
+  bands: TierLabor;
+}
+
+export interface OrderTemplate extends BaseRecord {
+  name: string; customerId: string; projectId: string; formulaId: string; quoteId: string;
+  qty: number; unitPrice: number; bulk: boolean; leadTimeWeeks: number; notes: string;
+  timesUsed: number; lastUsedAt: string | null; active: boolean; tags: string[];
+}
+
+export interface ComplianceFlag {
+  check: string; status: 'PASS' | 'WARN' | 'BLOCK'; detail: string; authority?: string;
+}
+
+export interface CostedLine {
+  code: string; itemId: string | null; name: string; form: string;
+  targetMg: string; inputMg: string; labelClaim: number | null; labelUnit: string | null;
+  pricePerKg: string; pricePerMg: string; priceSource: string;
+  costPerServing: string; costPerUnit: string; isBaseFill: boolean;
+}
+
+export interface CostedTier {
+  qty: number;
+  laborLines: { label: string; ratePer1000: string; perUnit: string; minutes?: number | null; crew?: number | null; rate?: number | null; costPerBatch?: number | null }[];
+  laborPerUnit: string; laborPerBatch?: string; laborSource?: string; overheadRate: number; overheadPerUnit: string; coaPerUnit: string;
+  rawMaterialsPerUnit: string; packagingPerUnit: string; servicesPerUnit: string;
+  cogsPerUnit: string; margin: number | null;
+  salePricePerUnit: string | null; extendedTotal: string | null; marginDollars: string | null;
+  gpPerUnit?: string | null; gpPct?: number | null; priceSource?: 'margin' | 'set'; per1000?: string | null;
+  batchCogs: string;
+}
+
+export interface QuoteResult {
+  meta: Record<string, unknown> & { generatedAt: string; coaFee: string; leadTimeWeeks: number; paymentTerms: string };
+  product: {
+    format: string; isBulk: boolean; servingSize: string; servingsPerUnit: number;
+    totalFormatWeightMg: string; totalInputMg: string; capsuleShellSize: string | null;
+    overagePct: number; fillUtilisationPct: string; unitsPerServing: number; perPieceWeightMg: string;
+  };
+  ingredients: { actives: CostedLine[]; excipients: CostedLine[] };
+  packaging: { code: string; itemId: string | null; name: string; costPerUnit: string; priceSource: string }[];
+  services: { name: string; costPerUnit: string; basis: string }[];
+  costSummary: { rawMaterialsPerUnit: string; packagingPerUnit: string; servicesPerUnit: string; coaFee: string };
+  compliance: ComplianceFlag[];
+  complianceWorst: 'PASS' | 'WARN' | 'BLOCK';
+  tiers: CostedTier[];
+}
+
+export interface Quote extends BaseRecord {
+  quoteNumber: string; title: string; customerId: string; formulaId: string; projectId: string;
+  status: string; revision: number; ownerId: string; coaFee: number;
+  tiers: QuoteTierInput[]; snapshot: Record<string, unknown>; result: QuoteResult;
+  leadTimeWeeks: number; paymentTerms: string; validUntil: string | null;
+  sentAt: string | null; decidedAt: string | null; notes: string; tags: string[];
+}
+
+export interface WorkOrderMaterial {
+  itemId: string; itemCode: string; name: string; lotId: string; lotNumber: string;
+  plannedQty: number; issuedQty: number; uom: string; issuedAt: string | null; issuedBy: string;
+}
+
+export interface TimeEntry {
+  userId: string; startedAt: string; endedAt: string | null; minutes: number; note: string; manual?: boolean;
+}
+
+export interface BatchStep {
+  name: string; done: boolean; doneBy: string; doneAt: string | null;
+  requiresSignature: boolean; notes: string;
+  // Routing-derived: where it runs, how long it should take, what it should cost.
+  seq?: number; workCenter?: string; setupMin?: number; runRatePerHour?: number; crew?: number; laborRate?: number;
+  plannedMin?: number; standardLaborCost?: number;
+  timeEntries?: TimeEntry[]; actualMin?: number; actualLaborCost?: number;
+}
+
+export interface RoutingOperation {
+  seq: number; name: string; workCenter: string; setupMin: number; runRatePerHour: number; runMin?: number;
+  crew: number; laborRate: number; requiresSignature: boolean;
+}
+
+export interface Routing extends BaseRecord {
+  code: string; name: string; format: string; isDefault: boolean; hoursPerShift: number;
+  operations: RoutingOperation[]; notes: string; tags: string[];
+}
+
+export interface QcCheck {
+  name: string; spec: string; result: string; status: string; checkedBy: string; checkedAt: string | null;
+}
+
+export interface Deviation {
+  id: string; raisedBy: string; raisedAt: string; summary: string;
+  status: string; disposition: string; closedBy?: string; closedAt?: string | null;
+}
+
+export interface WorkOrder extends BaseRecord {
+  woNumber: string; batchNumber: string; stage: string; priority: string;
+  productName: string; formulaId: string; customerId: string; salesOrderId: string; line: string;
+  plannedQty: number; actualQty: number; uom: string;
+  plannedStart: string | null; plannedEnd: string | null; actualStart: string | null; actualEnd: string | null;
+  supervisorId: string; operatorIds: string[];
+  materials: WorkOrderMaterial[]; steps: BatchStep[]; qcChecks: QcCheck[]; deviations: Deviation[];
+  standardUnitCost?: number; standardMaterialCost?: number;
+  actualUnitCost?: number; actualMaterialCost?: number; outputLotId?: string;
+  routingId?: string; standardLaborMin?: number; standardLaborCost?: number; actualLaborMin?: number; actualLaborCost?: number;
+  projectId?: string;
+  yieldPct: number; holdReason: string; boardOrder: number; stageEnteredAt: string | null;
+  releasedBy: string; releasedAt: string | null; notes: string; tags: string[];
+}
+
+export interface ChecklistRow {
+  id: number; row: number; cat: string; text: string; needs: 'copy' | 'art' | 'file';
+  look: string; state: string; comment: string; decidedBy?: string; decidedAt?: string | null;
+}
+
+export interface Finding {
+  id: string; rowId: number; type: 'required' | 'recommendation';
+  issue: string; authority: string; proposedWording: string; evidence: string;
+  decision: 'pending' | 'accepted' | 'denied'; note?: string;
+  decidedBy: string | null; decidedAt: string | null;
+}
+
+export interface SupplementFactsRow {
+  name: string; display: string; amount: number; unit: string;
+  iuEquivalent: number | null; pctDv: number | null; footnote: boolean; hasDv: boolean;
+}
+
+export interface SupplementFacts {
+  servingSize: string; servingsPerContainer: number | null;
+  rows: SupplementFactsRow[]; otherIngredients: string[]; footnotes: string[];
+  dvBasis?: string; generatedAt?: string;
+}
+
+export interface LabelMetrics {
+  total: number; pass: number; fail: number; na: number; notReviewed: number;
+  reviewed: number; completionPct: number; requiredCorrections: number; recommendations: number;
+}
+
+export interface LabelPanels { pdp?: string; information?: string; leftSide?: string; rightSide?: string; other?: string }
+
+export interface LabelReview extends BaseRecord {
+  reviewNumber: string; productName: string; brand: string;
+  customerId: string; projectId: string; formulaId: string;
+  status: string; labelRevision: string; source: string; receivedAt: string | null;
+  panels: LabelPanels; checklist: ChecklistRow[]; findings: Finding[];
+  supplementFacts: SupplementFacts | Record<string, never>; metrics: LabelMetrics;
+  reviewerId: string; reviewedAt: string | null; approverId: string; approvedAt: string | null;
+  documentIds: string[]; notes: string; tags: string[];
+}
+
+export interface Task extends BaseRecord {
+  title: string; description: string; status: string; priority: string;
+  assigneeId: string; dueDate: string | null; refType: string; refId: string; refLabel: string;
+  boardOrder: number; completedAt: string | null; tags: string[];
+}
+
+export interface Activity extends BaseRecord {
+  type: string; title: string; detail: string; actorId: string; actorName: string;
+  refType: string; refId: string; link: string; tone: string;
+}
+
+export interface Notification extends BaseRecord {
+  userId: string; title: string; body: string; link: string;
+  severity: string; read: boolean; readAt: string | null;
+}
+
+export interface CountLine {
+  lotId: string; lotNumber: string; itemId: string; uom?: string; unitCost?: number;
+  expectedQty: number; countedQty: number | null; variance: number | null; countedBy: string; countedAt?: string | null;
+  recount?: boolean; note?: string; posted?: boolean; postedDelta?: number;
+  // Present on the enriched sheet from /inventory/counts/:id
+  itemName?: string; itemCode?: string; lotStatus?: string; locationId?: string; bookQty?: number;
+  variancePct?: number | null; varianceValue?: number | null; outOfTolerance?: boolean;
+}
+
+export interface CountSummary {
+  lines: number; counted: number; withVariance: number; outOfTolerance: number; recounts: number;
+  netQty: number; netValue: number; absValue: number; accuracyPct: number | null;
+}
+
+export interface CycleCount extends BaseRecord {
+  countNumber: string; locationId: string; scope?: 'location' | 'items' | 'all'; itemIds?: string[]; blind?: boolean; tolerancePct?: number;
+  status: string; scheduledFor: string | null;
+  lines: CountLine[];
+  countedBy: string; startedAt?: string | null; reviewedAt?: string | null; closedBy: string; closedAt: string | null;
+  postedValue?: number; postedLines?: number; notes: string;
+  summary?: CountSummary;
+}
+
+export interface Setting extends BaseRecord {
+  key: string; value: unknown; label: string; category: string; description: string;
+}
+
+export interface PresenceUser {
+  id: string; name: string; initials: string; role: string;
+  accentColor: string; viewing: string | null; since: string; connections: number;
+}
+
+export interface Kpi {
+  key: string; label: string; value: string | number; detail: string; tone: string; link: string;
+}
+
+export interface DashboardAlert { severity: string; module: string; title: string; detail: string; link: string }
+
+export interface FlowTile { key: string; label: string; count: number; hint: string; link: string; tone: string }
+
+export interface JourneyStep {
+  key: string; label: string; status: 'done' | 'current' | 'todo' | 'blocked' | 'skipped'; detail?: string;
+  record?: { type: string; id: string; label: string; link: string } | null;
+  action?: { label: string; kind: string; to: string | null } | null;
+}
+export interface ProjectNumbers {
+  project: string; formula: { id: string; code: string; revision: number } | null;
+  quotes: { id: string; number: string; status: string }[];
+  salesOrders: { id: string; number: string; customerPo: string; status: string }[];
+  workOrders: { id: string; number: string; batchNumber: string; stage: string }[];
+}
+export interface Journey { steps: JourneyStep[]; next: { key: string; label: string; kind: string; to: string | null } | null; progress: number }
+
+export interface Dashboard {
+  generatedAt: string;
+  flow: FlowTile[];
+  kpis: Kpi[];
+  production: { value: string; label: string; tone: string; count: number; units: number; wipLimit?: number }[];
+  pipeline: { value: string; label: string; tone: string; count: number }[];
+  alerts: DashboardAlert[];
+  myWork: {
+    tasks: Task[]; workOrders: WorkOrder[]; projects: Project[];
+    quotes: Quote[]; labelReviews: LabelReview[]; notifications: Notification[];
+  };
+  activity: Activity[];
+  schedule: {
+    id: string; woNumber: string; productName: string; stage: string; line: string;
+    plannedStart: string | null; plannedEnd: string | null; plannedQty: number;
+    priority: string; customerName: string;
+  }[];
+  throughput: { weekOf: string; batches: number; units: number }[];
 }

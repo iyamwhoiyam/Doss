@@ -1,236 +1,228 @@
-import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { useOrder, useOrderGates, useSetGateStatus, useUpdateOrder } from '../lib/queries';
-import { useActor } from '../lib/session';
-import { ErrorNotice, Loading, Pill, StatusPill, dateStr, money, num } from '../components/bits';
-import type { GateStatus, OrderGate } from '../lib/types';
+import { useQueryClient } from '@tanstack/react-query';
 
-export default function OrderDetail() {
-  const { ref } = useParams<{ ref: string }>();
-  const order = useOrder(ref);
-  const gates = useOrderGates(ref);
-  const actor = useActor();
-  const setGate = useSetGateStatus(actor);
-  const updateOrder = useUpdateOrder(actor);
+import { PageHeader } from '../components/Shell';
+import { Icon } from '../components/Icon';
+import { Badge, Card, CardHead, KeyValue, Loading, Meter, Section, Select, StatusBadge } from '../components/ui';
+import { api, useList, useRecord } from '../lib/api';
+import { useUi } from '../lib/ui';
+import { useSession } from '../lib/session';
+import { useViewing } from '../lib/realtime';
+import { useCustomers, useUsers } from '../lib/lookups';
+import { date, money, number, percent, relative, unitMoney } from '../lib/format';
+import { PRIORITIES, SO_STATUS, WORK_ORDER_STAGES } from '@shared/domain';
+import type { SalesOrder, Shipment, WorkOrder } from '../lib/types';
 
-  const [modal, setModal] = useState<{ gate: OrderGate; status: GateStatus } | null>(null);
-  const [note, setNote] = useState('');
+export function OrderDetail() {
+  const { id } = useParams<{ id: string }>();
+  const queryClient = useQueryClient();
+  const { error, success } = useUi();
+  const { can } = useSession();
+  const customers = useCustomers();
+  const users = useUsers();
 
-  if (order.isLoading) return <Loading what={`order ${ref}`} />;
-  if (order.error) return <ErrorNotice error={order.error} />;
-  if (!order.data)
-    return (
-      <div className="notice notice--info">
-        No order with ref <b className="mono">{ref}</b>. <Link to="/orders" className="accent">Back to the board</Link>.
-      </div>
-    );
+  const { data: order, isLoading } = useRecord<SalesOrder>('salesOrders', id);
+  useViewing(order ? order.orderNumber : null);
 
-  const o = order.data;
-  const gateRows = gates.data ?? [];
-  const firstOpen = gateRows.find((g) => g.status !== 'done');
+  const { data: workOrders } = useList<WorkOrder>('workOrders', { where: { salesOrderId: id ?? '' } }, { enabled: Boolean(id) });
+  const { data: shipments } = useList<Shipment>('shipments', { where: { salesOrderId: id ?? '' } }, { enabled: Boolean(id) });
 
-  function openModal(gate: OrderGate, status: GateStatus) {
-    setNote(gate.note ?? '');
-    setModal({ gate, status });
-  }
+  if (isLoading || !order) return <div className="page"><Loading rows={7} /></div>;
 
-  async function confirmModal() {
-    if (!modal) return;
-    await setGate.mutateAsync({ gate: modal.gate, status: modal.status, note: note || undefined });
-    setModal(null);
-  }
+  const ordered = order.lines.reduce((sum, line) => sum + line.qty, 0);
+  const shipped = order.lines.reduce((sum, line) => sum + (line.shipped ?? 0), 0);
+  const produced = (workOrders?.rows ?? []).filter((wo) => wo.stage === 'complete').reduce((sum, wo) => sum + (wo.actualQty || 0), 0);
+
+  const setStatus = async (status: string) => {
+    try {
+      await api.patch(`/data/salesOrders/${order.id}`, { status });
+      queryClient.invalidateQueries({ queryKey: ['record', 'salesOrders', id] });
+      queryClient.invalidateQueries({ queryKey: ['collection', 'salesOrders'] });
+    } catch (err) { error(err); }
+  };
 
   return (
-    <>
-      <div className="page__head">
-        <h1>
-          <span className="mono accent">{o.ref}</span> {o.product || ''}
-        </h1>
-        {o.blocked ? <Pill tone="bad">blocked</Pill> : <Pill tone="ok">{o.pct ?? 0}%</Pill>}
-        <div className="page__spacer" />
-        <button
-          className={`btn btn--sm ${o.blocked ? 'btn--primary' : 'btn--danger'}`}
-          disabled={updateOrder.isPending}
-          onClick={() =>
-            updateOrder.mutate({
-              order: o,
-              patch: { blocked: !o.blocked, status: o.blocked ? 'active' : 'blocked' },
-            })
-          }
-        >
-          {o.blocked ? 'Clear block' : 'Mark blocked'}
-        </button>
-      </div>
-      <p className="page__sub">
-        {o.customer || 'no customer'} · {o.sales_rep ? `rep ${o.sales_rep}` : 'no rep'} ·{' '}
-        {o.qty ? `${num(o.qty)} ${o.unit ?? 'units'}` : 'no qty'} · {money(o.amount)}
-      </p>
-
-      <div className="detail">
-        <div className="card">
-          <div className="card__head">
-            Gate ladder
-            <span className="dim">
-              {gateRows.filter((g) => g.status === 'done').length}/{gateRows.length} complete
-            </span>
-          </div>
-          <div className="card__body">
-            {gates.isLoading ? (
-              <Loading what="gates" />
-            ) : gateRows.length === 0 ? (
-              <div className="empty">This order has no gate rows yet.</div>
-            ) : (
-              <div className="ladder">
-                {gateRows.map((g) => {
-                  const cls =
-                    g.status === 'done'
-                      ? 'gate--done'
-                      : g.status === 'blocked'
-                        ? 'gate--blocked'
-                        : g.id === firstOpen?.id
-                          ? 'gate--current'
-                          : '';
-                  return (
-                    <div className={`gate ${cls}`} key={g.id}>
-                      <span className="gate__dot" aria-hidden="true" />
-                      <div>
-                        <div className="gate__name">{g.gate_key.replace(/_/g, ' ')}</div>
-                        <div className="gate__meta">
-                          {g.stage_name} · {g.department ?? '—'} · {g.owner ?? 'unassigned'}
-                          {g.status_date ? ` · ${dateStr(g.status_date)}` : ''}
-                        </div>
-                      </div>
-                      <div className="gate__actions">
-                        {g.status !== 'done' && (
-                          <button
-                            className="btn btn--primary btn--sm"
-                            disabled={setGate.isPending}
-                            onClick={() => openModal(g, 'done')}
-                          >
-                            Done
-                          </button>
-                        )}
-                        {g.status !== 'blocked' && g.status !== 'done' && (
-                          <button
-                            className="btn btn--danger btn--sm"
-                            disabled={setGate.isPending}
-                            onClick={() => openModal(g, 'blocked')}
-                          >
-                            Block
-                          </button>
-                        )}
-                        {(g.status === 'blocked' || g.status === 'done') && (
-                          <button
-                            className="btn btn--ghost btn--sm"
-                            disabled={setGate.isPending}
-                            onClick={() => openModal(g, 'in_progress')}
-                          >
-                            Reopen
-                          </button>
-                        )}
-                      </div>
-                      {g.note && <div className="gate__note">{g.note}</div>}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="stack">
-          <div className="card">
-            <div className="card__head">Order facts</div>
-            <div className="card__body">
-              <dl className="kv">
-                <dt>Status</dt>
-                <dd><StatusPill status={o.status} /></dd>
-                <dt>Stage</dt>
-                <dd>{o.stage_name ?? o.stage ?? '—'}</dd>
-                <dt>Next gate</dt>
-                <dd>{o.next_gate?.replace(/_/g, ' ') ?? '—'} ({o.next_owner ?? o.next_dept ?? '?'})</dd>
-                <dt>SO / PO</dt>
-                <dd className="mono">{o.so_no ?? '—'} / {o.customer_po ?? '—'}</dd>
-                <dt>MO refs</dt>
-                <dd className="mono">{o.mo_refs ?? '—'}</dd>
-                <dt>Project</dt>
-                <dd>
-                  {o.project_pn ? (
-                    <Link className="accent mono" to={`/projects/${encodeURIComponent(o.project_pn)}`}>
-                      {o.project_pn}
-                    </Link>
-                  ) : (
-                    '—'
-                  )}
-                </dd>
-                <dt>Contract date</dt>
-                <dd className="mono">{dateStr(o.contract_date)}</dd>
-                <dt>Delivery date</dt>
-                <dd className="mono">{dateStr(o.delivery_date)}</dd>
-                <dt>Deposit</dt>
-                <dd>{o.deposit_received ? <Pill tone="ok">received</Pill> : <Pill tone="warn">outstanding</Pill>}</dd>
-                <dt>Final payment</dt>
-                <dd>{o.final_received ? <Pill tone="ok">received</Pill> : <Pill tone="warn">outstanding</Pill>}</dd>
-                <dt>Unit price</dt>
-                <dd className="mono">{o.unit_price != null ? money(o.unit_price, 4) : '—'}</dd>
-              </dl>
-            </div>
-          </div>
-
-          {(o.docs_outstanding?.length ?? 0) > 0 && (
-            <div className="card">
-              <div className="card__head">Documents outstanding</div>
-              <div className="card__body">
-                {o.docs_outstanding!.map((d) => (
-                  <Pill key={d} tone="warn">{d.replace(/_/g, ' ')}</Pill>
-                ))}{' '}
-              </div>
-            </div>
-          )}
-
-          {o.order_issues && (
-            <div className="card">
-              <div className="card__head">Issues / notes</div>
-              <div className="card__body mid" style={{ whiteSpace: 'pre-wrap' }}>
-                {o.order_issues}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {modal && (
-        <div className="modal-backdrop" onClick={() => setModal(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>
-              {modal.status === 'done'
-                ? 'Complete gate'
-                : modal.status === 'blocked'
-                  ? 'Block gate'
-                  : 'Reopen gate'}
-              : {modal.gate.gate_key.replace(/_/g, ' ')}
-            </h3>
-            <textarea
-              placeholder={modal.status === 'blocked' ? 'Why is it blocked? (required)' : 'Note (optional)'}
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              autoFocus
-            />
-            <div className="modal__actions">
-              <button className="btn btn--ghost btn--sm" onClick={() => setModal(null)}>
-                Cancel
-              </button>
+    <div className="page">
+      <PageHeader
+        back={{ to: '/orders', label: 'Orders' }}
+        title={order.orderNumber}
+        badge={
+          <>
+            <StatusBadge list={SO_STATUS} value={order.status} large />
+            {order.priority !== 'normal' && <StatusBadge list={PRIORITIES} value={order.priority} dot={false} />}
+          </>
+        }
+        subtitle={
+          <>
+            <Link to={`/customers/${order.customerId}`}>{customers.name(order.customerId)}</Link>
+            {order.customerPo && <> · their PO <span className="mono">{order.customerPo}</span></>}
+            {' '}· {money(order.total)} · promised {date(order.promisedShipDate)}
+          </>
+        }
+        actions={
+          can('orders.write') && (
+            <>
               <button
-                className={`btn btn--sm ${modal.status === 'blocked' ? 'btn--danger' : 'btn--primary'}`}
-                disabled={setGate.isPending || (modal.status === 'blocked' && !note.trim())}
-                onClick={confirmModal}
+                type="button"
+                className="btn"
+                title="Keep this product, quantity and price as a canned job for the customer, so the next PO is one click"
+                onClick={async () => {
+                  try {
+                    const r = await api.post<{ template: { name: string }; created: boolean }>(`/commerce/templates/from-order/${order.id}`);
+                    success(r.created ? 'Saved as a repeat order' : 'Already saved as a repeat order', `${r.template.name} — find it on the customer's page`);
+                  } catch (err) { error(err); }
+                }}
               >
-                {setGate.isPending ? 'Saving…' : 'Confirm'}
+                <Icon name="refresh" size={13} /> Save as repeat order
               </button>
-            </div>
+              <Select
+                value={order.status}
+                onChange={setStatus}
+                options={SO_STATUS.map((s) => ({ value: s.value, label: s.label }))}
+                style={{ width: 190 }}
+              />
+            </>
+          )
+        }
+      />
+
+      <div className="grid grid-4" style={{ marginBottom: 'var(--s-4)' }}>
+        {[
+          { label: 'Ordered', value: number(ordered), detail: 'units', tone: 'neutral' },
+          { label: 'Produced', value: number(produced), detail: `${percent(ordered ? (produced / ordered) * 100 : 0, 0)} of the order`, tone: 'progress' },
+          { label: 'Shipped', value: number(shipped), detail: `${percent(ordered ? (shipped / ordered) * 100 : 0, 0)} of the order`, tone: 'success' },
+          { label: 'Order value', value: money(order.total, 0), detail: `${unitMoney(order.lines[0]?.unitPrice ?? 0)} per unit`, tone: 'accent' },
+        ].map((tile) => (
+          <div key={tile.label} className="kpi" data-tone={tile.tone}>
+            <div className="kpi-label">{tile.label}</div>
+            <div className="kpi-value" style={{ fontSize: 'var(--t-xl)' }}>{tile.value}</div>
+            <div className="kpi-detail">{tile.detail}</div>
           </div>
+        ))}
+      </div>
+
+      <div className="split">
+        <div className="col">
+          <Card>
+            <CardHead title="Order lines" icon="cart" />
+            <div className="table-wrap">
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th className="num-cell">Quantity</th>
+                    <th className="num-cell">Unit price</th>
+                    <th className="num-cell">Shipped</th>
+                    <th className="num-cell">Extended</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {order.lines.map((line, index) => (
+                    <tr key={index}>
+                      <td>
+                        <div className="cell-primary truncate">{line.description}</div>
+                        {line.formulaId && <Link to={`/formulations/${line.formulaId}`} className="cell-sub">view the formula</Link>}
+                      </td>
+                      <td className="num-cell">{number(line.qty)}</td>
+                      <td className="num-cell">{unitMoney(line.unitPrice)}</td>
+                      <td className="num-cell">{number(line.shipped ?? 0)}</td>
+                      <td className="num-cell">{money(line.qty * line.unitPrice, 0)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="card-foot row">
+              <span className="spacer" />
+              <table style={{ width: 240 }}>
+                <tbody>
+                  <tr><td className="cell-sub">Subtotal</td><td className="num-cell">{money(order.subtotal)}</td></tr>
+                  <tr><td className="cell-sub">Freight</td><td className="num-cell">{money(order.freight)}</td></tr>
+                  <tr><td className="strong">Total</td><td className="num-cell strong">{money(order.total)}</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </Card>
+
+          <Card>
+            <CardHead
+              title="Production"
+              subtitle={`${(workOrders?.rows ?? []).length} work order${(workOrders?.rows ?? []).length === 1 ? '' : 's'} against this order`}
+              icon="factory"
+            />
+            <div className="card-body-flush">
+              {(workOrders?.rows ?? []).map((wo) => (
+                <Link key={wo.id} to={`/production/${wo.id}`} className="list-row">
+                  <span className="mono cell-primary" style={{ width: 130 }}>{wo.woNumber}</span>
+                  <StatusBadge list={WORK_ORDER_STAGES} value={wo.stage} />
+                  <span className="grow truncate cell-sub">{wo.productName}</span>
+                  <span className="mono">{number(wo.actualQty || wo.plannedQty)}</span>
+                  {wo.yieldPct > 0 && <Badge tone={wo.yieldPct >= 95 ? 'success' : 'warning'}>{percent(wo.yieldPct, 1)}</Badge>}
+                </Link>
+              ))}
+              {(workOrders?.rows ?? []).length === 0 && (
+                <div className="cell-sub" style={{ padding: 'var(--s-5)' }}>
+                  No work order has been raised yet. Create one from the production board and link it to this order.
+                </div>
+              )}
+            </div>
+          </Card>
+
+          <Card>
+            <CardHead title="Shipments" icon="truck" />
+            <div className="card-body-flush">
+              {(shipments?.rows ?? []).map((shipment) => (
+                <div key={shipment.id} className="list-row">
+                  <span className="mono cell-primary" style={{ width: 140 }}>{shipment.shipmentNumber}</span>
+                  <Badge tone={shipment.status === 'delivered' ? 'success' : 'progress'}>{shipment.status.replace('_', ' ')}</Badge>
+                  <span className="grow cell-sub">{shipment.carrier} · {number(shipment.cartons)} cartons · {number(shipment.weightLb)} lb</span>
+                  <span className="mono cell-sub">{shipment.trackingNumber}</span>
+                  <span className="cell-sub nowrap">{date(shipment.shippedAt)}</span>
+                </div>
+              ))}
+              {(shipments?.rows ?? []).length === 0 && <div className="cell-sub" style={{ padding: 'var(--s-5)' }}>Nothing has shipped yet.</div>}
+            </div>
+          </Card>
         </div>
-      )}
-    </>
+
+        <div className="col">
+          <Section title="Fulfilment" icon="target">
+            <div className="col">
+              <div>
+                <div className="row-tight" style={{ marginBottom: 4 }}>
+                  <span className="cell-sub grow">Produced</span>
+                  <span className="mono cell-sub">{number(produced)} / {number(ordered)}</span>
+                </div>
+                <Meter value={produced} max={Math.max(1, ordered)} tone="progress" />
+              </div>
+              <div>
+                <div className="row-tight" style={{ marginBottom: 4 }}>
+                  <span className="cell-sub grow">Shipped</span>
+                  <span className="mono cell-sub">{number(shipped)} / {number(ordered)}</span>
+                </div>
+                <Meter value={shipped} max={Math.max(1, ordered)} tone="success" />
+              </div>
+            </div>
+          </Section>
+
+          <Section title="Order" icon="cart">
+            <KeyValue
+              items={[
+                { label: 'Customer', value: <Link to={`/customers/${order.customerId}`}>{customers.name(order.customerId)}</Link> },
+                { label: 'Owner', value: users.name(order.ownerId) },
+                { label: 'Customer PO', value: order.customerPo || '—' },
+                { label: 'From quote', value: order.quoteId ? <Link to={`/quotes/${order.quoteId}`}>view the quote</Link> : '—' },
+                { label: 'Requested ship', value: date(order.requestedShipDate) },
+                { label: 'Promised ship', value: date(order.promisedShipDate) },
+                { label: 'Shipped', value: date(order.shippedAt) },
+                { label: 'Created', value: `${date(order.createdAt)} by ${users.name(order.createdBy)}` },
+                { label: 'Last change', value: relative(order.updatedAt) },
+              ]}
+            />
+            {order.notes && <div className="cell-sub" style={{ marginTop: 'var(--s-3)', whiteSpace: 'pre-wrap' }}>{order.notes}</div>}
+          </Section>
+        </div>
+      </div>
+    </div>
   );
 }

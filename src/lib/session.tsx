@@ -1,84 +1,141 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import type { Session } from '@supabase/supabase-js';
-import { supabase } from './supabase';
-import type { Employee } from './types';
+/**
+ * Signed-in identity, capabilities and display preferences.
+ *
+ * Permissions come from the server rather than being re-derived here, so the UI
+ * can only ever hide what the API would refuse — the two can't drift apart.
+ */
 
-/* Session = Supabase auth session + the matching employees row.
-   The employees row is what drives role-aware UI (My Day, gate ownership). */
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
-interface AppSession {
-  session: Session | null;
-  employee: Employee | null;
-  loading: boolean;
-  signOut: () => Promise<void>;
+import { api, setUnauthorizedHandler } from './api';
+import type { User } from './types';
+
+interface MeResponse {
+  user: User;
+  permissions: Record<string, boolean>;
+  roles?: Record<string, { label: string; rank: number; blurb: string }>;
 }
 
-const Ctx = createContext<AppSession>({
-  session: null,
-  employee: null,
-  loading: true,
-  signOut: async () => {},
-});
+type Theme = 'dark' | 'light';
+type Density = 'comfortable' | 'compact';
+
+interface SessionValue {
+  user: User | null;
+  permissions: Record<string, boolean>;
+  roles: Record<string, { label: string; rank: number; blurb: string }>;
+  loading: boolean;
+  can: (permission: string) => boolean;
+  signIn: (email: string, password: string) => Promise<User>;
+  signOut: () => Promise<void>;
+  refresh: () => void;
+  theme: Theme;
+  setTheme: (theme: Theme) => void;
+  density: Density;
+  setDensity: (density: Density) => void;
+  sidebarCollapsed: boolean;
+  toggleSidebar: () => void;
+}
+
+const SessionContext = createContext<SessionValue | null>(null);
+
+const readPreference = <T extends string>(key: string, fallback: T): T =>
+  (localStorage.getItem(key) as T | null) ?? fallback;
 
 export function SessionProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
-  const [employee, setEmployee] = useState<Employee | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const [theme, setThemeState] = useState<Theme>(() => readPreference<Theme>('enova.theme', 'dark'));
+  const [density, setDensityState] = useState<Density>(() => readPreference<Density>('enova.density', 'comfortable'));
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('enova.sidebar') === 'collapsed');
+
+  const { data, isLoading, refetch } = useQuery<MeResponse | null>({
+    queryKey: ['me'],
+    queryFn: async () => {
+      try {
+        return await api.get<MeResponse>('/auth/me');
+      } catch {
+        return null; // not signed in — the login screen renders
+      }
+    },
+    retry: false,
+    staleTime: 60_000,
+  });
+
+  // A 401 anywhere means the session is gone; drop straight to the login screen.
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      queryClient.setQueryData(['me'], null);
+      queryClient.clear();
+    });
+    return () => setUnauthorizedHandler(null);
+  }, [queryClient]);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setLoading(false);
-    });
-    const { data: sub } = supabase.auth.onAuthStateChange((_evt, s) => {
-      setSession(s);
-    });
-    return () => sub.subscription.unsubscribe();
-  }, []);
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem('enova.theme', theme);
+  }, [theme]);
 
   useEffect(() => {
-    let cancelled = false;
-    async function loadEmployee() {
-      const email = session?.user?.email;
-      if (!email) {
-        setEmployee(null);
-        return;
-      }
-      const { data } = await supabase
-        .from('employees')
-        .select('*')
-        .eq('email', email)
-        .maybeSingle();
-      if (!cancelled) {
-        // A signed-in user with no employees row still gets in (e.g. an
-        // admin account created before their row existed) — they just see
-        // no personally-assigned work on My Day.
-        setEmployee((data as Employee | null) ?? null);
-      }
-    }
-    loadEmployee();
-    return () => {
-      cancelled = true;
-    };
-  }, [session?.user?.email]);
+    document.documentElement.dataset.density = density;
+    localStorage.setItem('enova.density', density);
+  }, [density]);
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
-  };
+  useEffect(() => {
+    localStorage.setItem('enova.sidebar', sidebarCollapsed ? 'collapsed' : 'expanded');
+  }, [sidebarCollapsed]);
 
-  return (
-    <Ctx.Provider value={{ session, employee, loading, signOut }}>{children}</Ctx.Provider>
-  );
+  const signIn = useCallback(async (email: string, password: string) => {
+    const result = await api.post<MeResponse>('/auth/login', { email, password });
+    queryClient.setQueryData(['me'], result);
+    await queryClient.invalidateQueries();
+    if (result.user.preferences?.theme) setThemeState(result.user.preferences.theme);
+    if (result.user.preferences?.density) setDensityState(result.user.preferences.density);
+    return result.user;
+  }, [queryClient]);
+
+  const signOut = useCallback(async () => {
+    await api.post('/auth/logout');
+    queryClient.setQueryData(['me'], null);
+    queryClient.clear();
+  }, [queryClient]);
+
+  const setTheme = useCallback((next: Theme) => {
+    setThemeState(next);
+    api.patch('/auth/me', { preferences: { theme: next, density } }).catch(() => { /* preference is local-first */ });
+  }, [density]);
+
+  const setDensity = useCallback((next: Density) => {
+    setDensityState(next);
+    api.patch('/auth/me', { preferences: { theme, density: next } }).catch(() => { /* preference is local-first */ });
+  }, [theme]);
+
+  const value = useMemo<SessionValue>(() => ({
+    user: data?.user ?? null,
+    permissions: data?.permissions ?? {},
+    roles: data?.roles ?? {},
+    loading: isLoading,
+    can: (permission: string) => Boolean(data?.permissions?.[permission]),
+    signIn,
+    signOut,
+    refresh: () => { void refetch(); },
+    theme,
+    setTheme,
+    density,
+    setDensity,
+    sidebarCollapsed,
+    toggleSidebar: () => setSidebarCollapsed((v) => !v),
+  }), [data, isLoading, signIn, signOut, refetch, theme, setTheme, density, setDensity, sidebarCollapsed]);
+
+  return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
 
-export function useSession(): AppSession {
-  return useContext(Ctx);
+export function useSession(): SessionValue {
+  const context = useContext(SessionContext);
+  if (!context) throw new Error('useSession must be used inside a SessionProvider');
+  return context;
 }
 
-/** Display name + email for audit rows. Falls back to the auth email when
-    there is no employees row. */
-export function useActor(): { actor: string; actor_email: string } {
-  const { session, employee } = useSession();
-  const email = session?.user?.email ?? 'unknown';
-  return { actor: employee?.name ?? email.split('@')[0], actor_email: email };
+/** Convenience for the common "hide what this role cannot do" check. */
+export function useCan(permission: string): boolean {
+  return useSession().can(permission);
 }
