@@ -1156,3 +1156,6 @@ a.list-row:hover { text-decoration: none; }
 .ref-chip[data-kind="q"]::before { content: 'Q'; }
 .ref-chip[data-kind="f"]::before { content: 'F'; }
 .ref-chip:hover { border-color: var(--accent, #2ec4a0); text-decoration: none; background: color-mix(in srgb, var(--accent, #2ec4a0) 10%, transparent); }
+
+/* A price typed in by hand (rather than derived from a margin). */
+.input.input-set { border-color: var(--accent, #2ec4a0); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent, #2ec4a0) 40%, transparent); }

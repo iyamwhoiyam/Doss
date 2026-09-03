@@ -14,6 +14,17 @@ import { can } from '../../shared/domain.js';
 import { actorContext, HttpError } from '../lib/auth.js';
 import { route, queryOptions, num } from '../lib/http.js';
 import { assertUnlocked } from '../lib/lock.js';
+import { BULK_FORMATS } from '../../shared/domain.js';
+
+/** Rules of the business that hold whichever screen writes the record. */
+function businessRules(db, collection, body, existing = null) {
+  if (collection === 'formulas') {
+    const next = { ...(existing ?? {}), ...body };
+    if (next.isBulk && !BULK_FORMATS.includes(next.format)) {
+      throw new HttpError(422, `Bulk (unpackaged) is only offered for ${BULK_FORMATS.join(' and ')} products — a ${next.format || 'formula of this format'} cannot be marked bulk`);
+    }
+  }
+}
 
 /** Collections the generic API refuses to expose at all. */
 const PRIVATE = new Set(['sessions']);
@@ -106,6 +117,7 @@ export function crudRouter(db) {
       delete body.passwordHash; delete body.passwordSalt;
     }
     const ctx = actorContext(req);
+    businessRules(db, req.collection, body);
     const row = db.insert(req.collection, body, ctx);
     syncProductLinks(db, req.collection, row, ctx);
     res.status(201).json(redact(req.collection, row));
@@ -124,6 +136,7 @@ export function crudRouter(db) {
     const ctx = actorContext(req);
     if (ifMatch !== undefined && ifMatch !== null && ifMatch !== '') ctx.expectedVersion = num(ifMatch, undefined);
 
+    businessRules(db, req.collection, body, db.get(req.collection, req.params.id));
     const row = db.update(req.collection, req.params.id, body, ctx);
     syncProductLinks(db, req.collection, row, ctx);
     res.json(redact(req.collection, row));

@@ -217,7 +217,12 @@ export const STANDARD_ROUTINGS = [
       op('Case packing', 'Tincture', 10, 4000, 1),
     ],
   },
-].map((r) => ({ ...r, operations: r.operations.map((o, i) => ({ seq: i + 1, ...o })) }));
+].map((r) => ({
+  ...r,
+  // Bottling, sealing, labelling and case packing only happen for packaged product;
+  // a bulk quote (gummies and capsules only) leaves them out.
+  operations: r.operations.map((o, i) => ({ seq: i + 1, packaging: /bottling|induction|labelling|case packing/i.test(o.name), ...o })),
+}));
 
 /** Insert any standard routing whose code is missing; returns what was added. */
 export function ensureStandardRoutings(db, ctx) {
@@ -227,4 +232,47 @@ export function ensureStandardRoutings(db, ctx) {
     added.push(db.insert('routings', { ...routing, notes: '', tags: [] }, ctx));
   }
   return added;
+}
+
+/**
+ * Real labour for a quote tier: the formula's routing run at that quantity,
+ * minutes × crew × rate per operation. Bulk product skips the packaging
+ * operations. Returns null when the format has no routing yet.
+ */
+export function routingLabour(db, formula, qty, { bulk = false } = {}) {
+  const routing = pickRouting(db, formula);
+  if (!routing) return null;
+  const ops = (routing.operations ?? []).filter((op) => !(bulk && (op.packaging || /bottling|induction|labelling|case packing/i.test(op.name))));
+  const units = Math.max(1, Number(qty) || 1);
+  const lines = ops.map((op) => {
+    const minutes = plannedMinutes(op, units);
+    const cost = laborCost(op, minutes);
+    return {
+      label: op.name, workCenter: op.workCenter ?? '', minutes, crew: Number(op.crew) || 0, rate: Number(op.laborRate) || 0,
+      costPerBatch: cost, perUnit: Number((cost / units).toFixed(6)),
+    };
+  });
+  const totalPerBatch = Number(lines.reduce((s, l) => s + l.costPerBatch, 0).toFixed(2));
+  return {
+    source: 'routing', routingId: routing.id, routingCode: routing.code, qty: units,
+    lines, totalPerBatch, perUnit: Number((totalPerBatch / units).toFixed(6)),
+    minutes: Number(lines.reduce((s, l) => s + l.minutes, 0).toFixed(1)),
+  };
+}
+
+/** What labour has really cost on finished batches of this formula (per unit). */
+export function actualLabour(db, formula) {
+  const done = db.find('workOrders', { formulaId: formula.id })
+    .filter((wo) => wo.stage === 'complete' && (wo.actualLaborCost || 0) > 0 && (wo.actualQty || 0) > 0)
+    .sort((a, b) => String(b.actualEnd ?? '').localeCompare(String(a.actualEnd ?? '')))
+    .slice(0, 10);
+  if (!done.length) return null;
+  const units = done.reduce((s, wo) => s + wo.actualQty, 0);
+  const cost = done.reduce((s, wo) => s + wo.actualLaborCost, 0);
+  return {
+    source: 'actual', batches: done.length, units, cost: Number(cost.toFixed(2)),
+    perUnit: Number((cost / units).toFixed(6)),
+    minutesPerUnit: Number((done.reduce((s, wo) => s + (wo.actualLaborMin || 0), 0) / units).toFixed(4)),
+    lastBatch: done[0].woNumber,
+  };
 }

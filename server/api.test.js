@@ -1122,6 +1122,76 @@ test('SO# and MO# follow the product: orders and batches carry the project, show
   assert.match(flat, new RegExp(so.orderNumber));
 });
 
+test('quotes price labour from the routing, take a typed price and show GP, and only sell gummies and capsules in bulk', async () => {
+  await post('/api/auth/logout');
+  await post('/api/auth/login', { email: 'jbradfield@enovascience.com', password: 'enova2026' });
+  const formula = db.findOne('formulas', { code: 'F-4004' }); // a gummy with a routing
+
+  // the labour picker offers the routing, the benchmarks and (once batches finish) actuals
+  const options = await get(`/api/commerce/formulas/${formula.id}/labour?qty=10000`);
+  assert.equal(options.routing.source, 'routing');
+  assert.ok(options.routing.lines.length >= 5 && options.routing.perUnit > 0);
+  assert.ok(options.routing.lines.every((l) => typeof l.minutes === 'number' && typeof l.crew === 'number'));
+  assert.equal(options.bulkAllowed, true);
+  assert.ok(options.bands.depositPer1000 > 0);
+
+  // a computed tier carries the routing's lines and a margin-derived price
+  const priced = await post('/api/commerce/quotes/compute', { formulaId: formula.id, tiers: [{ qty: 10000, laborMode: 'routing', margin: 0.4 }] });
+  const tier = priced.tiers[0];
+  assert.equal(tier.laborSource, 'routing');
+  assert.ok(tier.laborLines.some((l) => /Depositing/.test(l.label) && l.minutes > 0));
+  assert.equal(tier.priceSource, 'margin');
+  assert.equal(tier.gpPct, 40);
+  // bulk leaves bottling out and reports a per-thousand price
+  const bulkOptions = await get(`/api/commerce/formulas/${formula.id}/labour?qty=10000&bulk=true`);
+  assert.ok(!bulkOptions.routing.lines.some((l) => /Bottling|Labelling|Case packing/.test(l.label)), 'no packaging operations in bulk');
+  assert.ok(bulkOptions.routing.perUnit < options.routing.perUnit);
+
+  // set the price directly: the margin and GP are read back from it
+  const set = await post('/api/commerce/quotes/compute', { formulaId: formula.id, tiers: [{ qty: 10000, laborMode: 'routing', margin: 0.4, priceOverride: 2.5 }] });
+  assert.equal(set.tiers[0].priceSource, 'set');
+  assert.equal(Number(set.tiers[0].salePricePerUnit), 2.5);
+  assert.ok(Math.abs(Number(set.tiers[0].gpPerUnit) - (2.5 - Number(set.tiers[0].cogsPerUnit))) < 0.0001);
+  assert.ok(Math.abs(set.tiers[0].gpPct - ((2.5 - Number(set.tiers[0].cogsPerUnit)) / 2.5) * 100) < 0.11);
+
+  // a tablet cannot be bulk; a gummy can
+  const tablet = db.find('formulas').find((f) => f.format === 'tablet');
+  const refused = await api('PATCH', `/api/data/formulas/${tablet.id}`, { isBulk: true }, { raw: true });
+  assert.equal(refused.status, 422);
+  await patch(`/api/data/formulas/${formula.id}`, { isBulk: true });
+  const bulkQuote = await post('/api/commerce/quotes/compute', { formulaId: formula.id, tiers: [{ qty: 10000, margin: 0.4 }] });
+  assert.ok(Number(bulkQuote.tiers[0].per1000) > 0, 'bulk product is priced per thousand');
+  assert.equal(bulkQuote.tiers[0].laborSource, 'routing');
+  await patch(`/api/data/formulas/${formula.id}`, { isBulk: false });
+
+  // a customer's defaults shape new quotes for them
+  const customer = db.get('customers', formula.customerId);
+  await patch(`/api/data/customers/${customer.id}`, { defaultMargin: 0.33, laborRateFactor: 0.9 });
+  const theirs = await post('/api/commerce/quotes/compute', { formulaId: formula.id, customerId: customer.id });
+  assert.ok(theirs.tiers.every((t) => t.margin === 0.33), 'default margin applied to every tier');
+  assert.ok(Number(theirs.tiers[0].laborPerUnit) < Number(priced.tiers[0].laborPerUnit), 'negotiated labour factor lowers labour');
+  await patch(`/api/data/customers/${customer.id}`, { defaultMargin: 0, laborRateFactor: 1 });
+});
+
+test('a shipped order becomes a repeat order, and reordering raises the next SO at the agreed price', async () => {
+  const shipped = db.find('salesOrders').find((so) => ['shipped', 'invoiced', 'closed'].includes(so.status) && so.lines?.[0]?.formulaId);
+  const saved = await post(`/api/commerce/templates/from-order/${shipped.id}`);
+  assert.ok(saved.template.id && saved.template.customerId === shipped.customerId);
+  const usedBefore = saved.template.timesUsed || 0;
+  assert.equal(saved.template.unitPrice, shipped.lines[0].unitPrice);
+  const again = await post(`/api/commerce/templates/from-order/${shipped.id}`);
+  assert.equal(again.created, false, 'saving twice reuses the template');
+
+  const order = await post(`/api/commerce/templates/${saved.template.id}/reorder`, { customerPo: 'PO-REPEAT-7', qty: 1200 });
+  assert.match(order.orderNumber, /^SO-/);
+  assert.equal(order.status, 'confirmed');
+  assert.equal(order.customerPo, 'PO-REPEAT-7');
+  assert.equal(order.lines[0].qty, 1200);
+  assert.equal(order.lines[0].unitPrice, shipped.lines[0].unitPrice);
+  assert.equal(order.projectId, saved.template.projectId);
+  assert.equal(db.get('orderTemplates', saved.template.id).timesUsed, usedBefore + 1);
+});
+
 async function postCsv(url, csv, filename = 'data.csv') {
   const form = new FormData();
   form.append('file', new Blob([csv], { type: 'text/csv' }), filename);

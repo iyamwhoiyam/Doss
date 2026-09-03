@@ -16,7 +16,7 @@ import { useViewing, useAlsoHere } from '../lib/realtime';
 import { Avatar } from '../components/ui';
 import { useCustomers, useProjects, useUsers } from '../lib/lookups';
 import { date, mg, money, number, percent, unitMoney } from '../lib/format';
-import { CAPSULE_SHELLS, FORMULA_FORMATS, FORMULA_STATUS } from '@shared/domain';
+import { BULK_FORMATS, CAPSULE_SHELLS, FORMULA_FORMATS, FORMULA_STATUS } from '@shared/domain';
 import type { Formula, IngredientLine, PackagingLine, QuoteResult, Routing, ServiceLine } from '../lib/types';
 
 interface CatalogueItem {
@@ -590,9 +590,11 @@ export function FormulaBuilder() {
                   )}
                   <Toggle
                     checked={Boolean(draft.isBulk)}
-                    disabled={!writable}
+                    disabled={!writable || !BULK_FORMATS.includes(draft.format ?? '')}
                     onChange={(value) => update({ isBulk: value })}
-                    label="Bulk (unpackaged) — excludes every packaging line from the cost"
+                    label={BULK_FORMATS.includes(draft.format ?? '')
+                      ? 'Bulk (unpackaged) — quoted per 1,000 pieces; packaging lines and bottling labour are left out'
+                      : `Bulk is only offered for ${BULK_FORMATS.join(' and ')} products`}
                   />
                   <Field label="Notes"><TextArea value={draft.notes ?? ''} onChange={(value) => update({ notes: value })} disabled={!writable} rows={4} /></Field>
                 </div>

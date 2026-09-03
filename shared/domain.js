@@ -305,6 +305,9 @@ export const CAPSULE_SHELLS = {
 };
 
 /** Enova standing rules that the cost engine applies to every quote. */
+/** Only these formats are sold in bulk (unpackaged, priced per 1,000 pieces). */
+export const BULK_FORMATS = ['gummy', 'capsule'];
+
 export const QUOTE_DEFAULTS = {
   overagePct: 5,
   coaFee: 120,

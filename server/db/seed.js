@@ -850,6 +850,19 @@ export function seed(db, { verbose = true } = {}) {
   }
   log(`${salesOrders.length} sales orders`);
 
+  // -- repeat orders (canned jobs) from what has already shipped --
+  const templates = salesOrders.filter((so) => ['shipped', 'invoiced', 'closed'].includes(so.status)).slice(0, 3).map((so) => {
+    const line = so.lines[0];
+    const formula = line.formulaId ? db.get('formulas', line.formulaId) : null;
+    return db.insert('orderTemplates', {
+      name: `${line.description} × ${Number(line.qty).toLocaleString()}`,
+      customerId: so.customerId, projectId: so.projectId || '', formulaId: formula?.id ?? '', quoteId: so.quoteId || '',
+      qty: line.qty, unitPrice: line.unitPrice, bulk: Boolean(formula?.isBulk), leadTimeWeeks: 8,
+      notes: 'Standing reorder — same spec and price as the last run.', timesUsed: int(1, 4), lastUsedAt: daysAgo(int(10, 120)), active: true, tags: [],
+    }, sys);
+  });
+  log(`${templates.length} repeat orders`);
+
   // -- routings --
   const routings = STANDARD_ROUTINGS.map((r) => db.insert('routings', { ...r, notes: '', tags: [] }, sys));
   log(`${routings.length} routings`);

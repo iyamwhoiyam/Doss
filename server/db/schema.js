@@ -82,6 +82,10 @@ export const schema = {
       ownerId: str('Account manager'),
       paymentTerms: str('Payment terms', { default: 'Net 30' }),
       creditLimit: num('Credit limit'),
+      // Pricing defaults for this account: the margin new quotes start at, and a
+      // labour-rate factor (1 = list rates) for accounts with negotiated labour.
+      defaultMargin: num('Default margin'),
+      laborRateFactor: num('Labour rate factor', { default: 1 }),
       billingAddress: obj('Billing address'),
       shippingAddress: obj('Shipping address'),
       contacts: arr('Contacts'),
@@ -471,6 +475,30 @@ export const schema = {
   },
 
   // ── production ───────────────────────────────────────────────────────────
+  // Canned jobs: a customer's repeat purchase — product, quantity and the
+  // agreed price — ready to become an order (and a batch) in one click.
+  orderTemplates: {
+    label: 'Repeat orders',
+    fields: {
+      name: str('Name', { required: true }),
+      customerId: str('Customer', { required: true }),
+      projectId: str('Project'),
+      formulaId: str('Formula'),
+      quoteId: str('Quote'),
+      qty: num('Quantity'),
+      unitPrice: num('Unit price'),
+      bulk: bool('Bulk'),
+      leadTimeWeeks: num('Lead time (weeks)'),
+      notes: str('Notes'),
+      timesUsed: num('Times used'),
+      lastUsedAt: date('Last used'),
+      active: bool('Active', { default: true }),
+      tags: arr('Tags'),
+    },
+    indexes: ['customerId', 'projectId', 'formulaId'],
+    search: ['name', 'notes'],
+  },
+
   routings: {
     label: 'Routings',
     fields: {
@@ -766,6 +794,7 @@ export const COLLECTION_PERMISSIONS = {
   projects: { read: null, write: 'projects.write' },
   formulas: { read: null, write: 'formulas.write' },
   quotes: { read: 'cost.view', write: 'quotes.write' },
+  orderTemplates: { read: null, write: 'orders.write' },
   routings: { read: null, write: 'production.write' },
   workOrders: { read: null, write: 'production.write' },
   labelReviews: { read: null, write: 'labels.write' },

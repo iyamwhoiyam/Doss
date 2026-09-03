@@ -6,7 +6,7 @@ import { PageHeader } from '../components/Shell';
 import { Icon } from '../components/Icon';
 import {
   Avatar, Badge, Card, CardHead, DataTable, EmptyState, Field, KeyValue, Loading,
-  Section, Select, StatusBadge, Tabs, TextArea, type Column,
+  NumberInput, Section, Select, StatusBadge, Tabs, TextArea, type Column,
 } from '../components/ui';
 import { api, useList, useRecord } from '../lib/api';
 import { useUi } from '../lib/ui';
@@ -19,6 +19,7 @@ import {
   FORMULA_STATUS, LABEL_REVIEW_STATUS, QUOTE_STATUS, SO_STATUS, findOption,
 } from '@shared/domain';
 import type { Customer, Doc, Formula, LabelReview, Project, Quote, SalesOrder } from '../lib/types';
+import { RepeatOrders } from '../components/RepeatOrders';
 
 export function CustomerDetail() {
   const { id } = useParams<{ id: string }>();
@@ -163,6 +164,8 @@ export function CustomerDetail() {
                   </div>
                 </Card>
 
+                <RepeatOrders customerId={customer.id} writable={can('orders.write')} />
+
                 <Card>
                   <CardHead title="Recent orders" icon="cart" />
                   <div className="card-body-flush">
@@ -177,6 +180,19 @@ export function CustomerDetail() {
                     {(orders?.rows ?? []).length === 0 && <div className="cell-sub" style={{ padding: 'var(--s-5)' }}>No orders yet.</div>}
                   </div>
                 </Card>
+
+                {can('customers.write') && (
+                  <Section title="Pricing defaults" icon="calculator">
+                    <div className="field-row">
+                      <Field label="Default margin %" hint="New quotes for this account start here.">
+                        <NumberInput value={Number(((customer.defaultMargin ?? 0) * 100).toFixed(1))} onChange={(v) => { void patch({ defaultMargin: Number.isFinite(v) && v > 0 ? v / 100 : 0 }); }} min={0} max={95} />
+                      </Field>
+                      <Field label="Labour rate factor" hint="1 = list rates; 0.9 gives a 10% negotiated labour discount.">
+                        <NumberInput value={customer.laborRateFactor ?? 1} onChange={(v) => { void patch({ laborRateFactor: Number.isFinite(v) && v > 0 ? v : 1 }); }} min={0.1} max={3} dp={2} />
+                      </Field>
+                    </div>
+                  </Section>
+                )}
 
                 {can('customers.write') && (
                   <Section title="Notes" icon="file">

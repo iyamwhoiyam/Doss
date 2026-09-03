@@ -11,7 +11,8 @@ import { Router } from 'express';
 
 import { buildQuote, buildFormula, runCompliance, defaultTiers, suggestLabour } from '../calc/quoteEngine.js';
 import { generateSupplementFacts, renderSupplementFactsText } from '../calc/labelEngine.js';
-import { QUOTE_DEFAULTS, FORMULA_FORMATS, overheadRateForQty } from '../../shared/domain.js';
+import { QUOTE_DEFAULTS, FORMULA_FORMATS, BULK_FORMATS, overheadRateForQty } from '../../shared/domain.js';
+import { actualLabour, routingLabour } from '../calc/routing.js';
 import { actorContext, requirePermission, HttpError } from '../lib/auth.js';
 import { route, num, requireFields } from '../lib/http.js';
 import { logActivity, notify } from '../lib/events.js';
@@ -154,13 +155,72 @@ export function commerceRouter(db) {
 
   // ── quotes ───────────────────────────────────────────────────────────────
 
+  /** Bulk (unpackaged, per-thousand) is only a thing for gummies and capsules. */
+  const assertBulkAllowed = (formula) => {
+    if (formula?.isBulk && !BULK_FORMATS.includes(formula.format)) {
+      throw new HttpError(422, `Bulk pricing is only offered for ${BULK_FORMATS.join(' and ')} products — this formula is a ${formula.format}`);
+    }
+  };
+
+  /**
+   * Labour for a tier, by source:
+   *   routing — the formula's routing run at that quantity: real minutes × crew × rate
+   *   actual  — what finished batches of this formula really cost per unit
+   *   bands   — the benchmark per-thousand rates (used when there is no routing yet)
+   *   manual  — whatever was typed into the labour editor
+   * A customer's labour-rate factor scales routing and band figures.
+   */
+  const labourFor = (formula, tier, customer) => {
+    const factor = Number(customer?.laborRateFactor) > 0 ? Number(customer.laborRateFactor) : 1;
+    const qty = num(tier.qty, 0);
+    const mode = tier.laborMode ?? (tier.labor?.lines?.length ? 'routing' : tier.labor && Object.keys(tier.labor).some((k) => k.endsWith('Per1000')) ? 'manual' : 'routing');
+    const qcPct = tier.labor?.qcPctOfProduction ?? QUOTE_DEFAULTS.qcPctOfProduction;
+    if (mode === 'actual') {
+      const actual = actualLabour(db, formula);
+      if (actual) return { mode, labor: { source: 'actual', qcPctOfProduction: 0, lines: [{ label: `Actual labour — average of ${actual.batches} finished batch${actual.batches === 1 ? '' : 'es'} (${actual.lastBatch})`, perUnit: actual.perUnit }] } };
+    }
+    if (mode === 'routing' || mode === 'actual') {
+      const real = routingLabour(db, formula, qty, { bulk: Boolean(formula.isBulk) });
+      if (real) return { mode: 'routing', labor: { source: 'routing', qcPctOfProduction: qcPct, lines: real.lines.map((l) => ({ ...l, perUnit: Number((l.perUnit * factor).toFixed(6)), costPerBatch: Number((l.costPerBatch * factor).toFixed(2)) })) } };
+    }
+    if (mode === 'manual' && tier.labor) return { mode, labor: { ...tier.labor, source: 'manual' } };
+    const bands = suggestLabour(formula.format, qty);
+    const scaled = Object.fromEntries(Object.entries(bands).map(([k, v]) => [k, k.endsWith('Per1000') ? Number((v * factor).toFixed(2)) : v]));
+    return { mode: 'bands', labor: { ...scaled, source: 'bands' } };
+  };
+  const normaliseTiers = (formula, tiers, customer) => tiers.map((tier) => {
+    const { mode, labor } = labourFor(formula, tier, customer);
+    return { ...tier, laborMode: mode, labor, priceOverride: tier.priceOverride == null || tier.priceOverride === '' ? null : num(tier.priceOverride, 0) || null };
+  });
+  const tiersFor = (formula, customer, requested) => {
+    const base = requested?.length ? requested : defaultTiers(formula.format ?? 'capsule');
+    const margin = Number(customer?.defaultMargin);
+    const withCustomer = margin > 0 && margin < 1 && !requested?.length ? base.map((t) => ({ ...t, margin })) : base;
+    return normaliseTiers(formula, withCustomer, customer);
+  };
+
+  /** The labour choices for a formula at a quantity: routing, actuals and bands side by side. */
+  router.get('/formulas/:id/labour', route((req, res) => {
+    const formula = db.getOrFail('formulas', req.params.id);
+    const qty = num(req.query.qty, 10000) || 10000;
+    const bulk = String(req.query.bulk ?? formula.isBulk) === 'true';
+    res.json({
+      qty,
+      routing: routingLabour(db, formula, qty, { bulk }),
+      actual: actualLabour(db, formula),
+      bands: suggestLabour(formula.format, qty),
+      bulkAllowed: BULK_FORMATS.includes(formula.format),
+    });
+  }));
+
   /** Price a quote without saving it — the live tier table in the cost generator. */
   router.post('/quotes/compute', requirePermission('quotes.write'), route((req, res) => {
     const formula = req.body?.formulaId
       ? withLivePricing(db, db.getOrFail('formulas', req.body.formulaId))
       : withLivePricing(db, req.body?.formula ?? {});
-    const tiers = req.body?.tiers?.length ? req.body.tiers : defaultTiers(formula.format ?? 'capsule');
-    const customer = req.body?.customerId ? db.get('customers', req.body.customerId) : null;
+    assertBulkAllowed(formula);
+    const customer = req.body?.customerId ? db.get('customers', req.body.customerId) : formula.customerId ? db.get('customers', formula.customerId) : null;
+    const tiers = tiersFor(formula, customer, req.body?.tiers);
 
     res.json(buildQuote({
       formula,
@@ -183,11 +243,12 @@ export function commerceRouter(db) {
     const ctx = actorContext(req);
     const created = db.transaction((tx) => {
       const formula = withLivePricing(db, tx.getOrFail('formulas', req.body.formulaId));
-      const tiers = req.body.tiers?.length ? req.body.tiers : defaultTiers(formula.format);
+      assertBulkAllowed(formula);
       // The customer comes from the request, else the formula, else the project the formula belongs to.
       const project = formula.projectId ? tx.get('projects', formula.projectId) : null;
       const customerId = req.body.customerId || formula.customerId || project?.customerId || '';
       const customer = customerId ? tx.get('customers', customerId) : null;
+      const tiers = tiersFor(formula, customer, req.body.tiers);
       const quoteNumber = tx.nextSequence('QUOTE', 'Q-{yyyy}-{n:4}');
       const coaFee = num(req.body.coaFee ?? setting('quote.coaFee', 120), 120);
 
@@ -226,7 +287,8 @@ export function commerceRouter(db) {
     assertUnlocked(db, 'quotes', req.params.id);
     const quote = db.getOrFail('quotes', req.params.id);
     const formula = withLivePricing(db, db.getOrFail('formulas', quote.formulaId));
-    const tiers = req.body?.tiers ?? quote.tiers;
+    const tiersRequested = req.body?.tiers ?? quote.tiers;
+      const tiers = normaliseTiers(formula, tiersRequested, quote.customerId ? db.get('customers', quote.customerId) : null);
     const coaFee = num(req.body?.coaFee ?? quote.coaFee, 120);
     const customer = quote.customerId ? db.get('customers', quote.customerId) : null;
 
@@ -330,6 +392,68 @@ export function commerceRouter(db) {
       type: 'order', title: `${created.orderNumber} created from quote`, detail: created.lines[0].description,
       tone: 'success', refType: 'salesOrder', refId: created.id, link: `/orders/${created.id}`,
     });
+    res.status(201).json(created);
+  }));
+
+  // ── canned jobs: a customer's repeat order, ready to raise again ───────────
+
+  /** Save an order as a repeat-order template for its customer. */
+  router.post('/templates/from-order/:orderId', requirePermission('orders.write'), route((req, res) => {
+    const order = db.getOrFail('salesOrders', req.params.orderId);
+    const line = order.lines?.[0];
+    if (!line) throw new HttpError(422, 'This order has no line to repeat');
+    const formula = line.formulaId ? db.get('formulas', line.formulaId) : null;
+    const quote = order.quoteId ? db.get('quotes', order.quoteId) : null;
+    const existing = db.find('orderTemplates', { customerId: order.customerId }).find((t) => t.formulaId === (formula?.id ?? '') && t.qty === line.qty && t.active !== false);
+    if (existing) return res.json({ template: existing, created: false });
+    const template = db.insert('orderTemplates', {
+      name: req.body?.name || `${line.description} × ${Number(line.qty).toLocaleString()}`,
+      customerId: order.customerId,
+      projectId: order.projectId || quote?.projectId || formula?.projectId || '',
+      formulaId: formula?.id ?? '',
+      quoteId: order.quoteId || '',
+      qty: line.qty,
+      unitPrice: line.unitPrice,
+      bulk: Boolean(formula?.isBulk),
+      leadTimeWeeks: quote?.leadTimeWeeks ?? num(setting('quote.leadTimeWeeks', 8), 8),
+      notes: req.body?.notes ?? '',
+      timesUsed: 0, lastUsedAt: null, active: true, tags: [],
+    }, actorContext(req));
+    logActivity(db, req, { type: 'order', title: `Repeat order saved: ${template.name}`, detail: db.get('customers', order.customerId)?.name ?? '', tone: 'info', refType: 'orderTemplate', refId: template.id, link: `/customers/${order.customerId}` });
+    res.status(201).json({ template, created: true });
+  }));
+
+  /** Raise a new order from a repeat-order template — the customer's PO and, optionally, a different quantity. */
+  router.post('/templates/:id/reorder', requirePermission('orders.write'), route((req, res) => {
+    const ctx = actorContext(req);
+    const created = db.transaction((tx) => {
+      const template = tx.getOrFail('orderTemplates', req.params.id);
+      if (template.active === false) throw new HttpError(409, 'This repeat order has been retired');
+      const qty = num(req.body?.qty, template.qty) || template.qty;
+      const unitPrice = num(req.body?.unitPrice, template.unitPrice) || template.unitPrice;
+      const formula = template.formulaId ? tx.get('formulas', template.formulaId) : null;
+      const subtotal = Number((unitPrice * qty).toFixed(2));
+      const weeks = template.leadTimeWeeks || 8;
+      const order = tx.insert('salesOrders', {
+        orderNumber: tx.nextSequence('SO', 'SO-{yyyy}-{n:4}'),
+        customerId: template.customerId,
+        status: 'confirmed',
+        priority: req.body?.priority ?? 'normal',
+        customerPo: req.body?.customerPo ?? '',
+        quoteId: template.quoteId || '',
+        projectId: template.projectId || formula?.projectId || '',
+        ownerId: req.user.id,
+        lines: [{ formulaId: formula?.id ?? '', description: formula?.name ?? template.name, qty, uom: 'ea', unitPrice, shipped: 0 }],
+        subtotal, freight: 0, total: subtotal,
+        requestedShipDate: req.body?.requestedShipDate ?? null,
+        promisedShipDate: req.body?.promisedShipDate ?? new Date(Date.now() + weeks * 7 * 86_400_000).toISOString(),
+        notes: `Repeat order from template "${template.name}".`,
+        tags: ['repeat'],
+      }, ctx);
+      tx.update('orderTemplates', template.id, { timesUsed: (template.timesUsed || 0) + 1, lastUsedAt: new Date().toISOString() }, ctx);
+      return order;
+    }, ctx);
+    logActivity(db, req, { type: 'order', title: `${created.orderNumber} raised from a repeat order`, detail: created.lines[0].description, tone: 'success', refType: 'salesOrder', refId: created.id, link: `/orders/${created.id}` });
     res.status(201).json(created);
   }));
 

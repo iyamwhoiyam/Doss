@@ -52,6 +52,7 @@ export const FORMULA_FORMATS: FormatDef[];
 export const FORMULA_STATUS: Option[];
 export const QUOTE_STATUS: Option[];
 export const CAPSULE_SHELLS: Record<string, { min: number; max: number }>;
+export const BULK_FORMATS: string[];
 export const QUOTE_DEFAULTS: {
   overagePct: number;
   coaFee: number;

@@ -407,7 +407,20 @@ const LABOUR_KEYS = [
 function buildLabour(labor = {}) {
   const lines = [];
   let production = D(0);
-  for (const [key, label] of LABOUR_KEYS) {
+  // Explicit lines (from the routing's real minutes, or from actual batches)
+  // take precedence over the per-thousand benchmark bands.
+  if (Array.isArray(labor.lines) && labor.lines.length) {
+    for (const line of labor.lines) {
+      const perUnit = D(line.perUnit ?? 0);
+      if (perUnit.isZero()) continue;
+      production = production.plus(perUnit);
+      lines.push({
+        label: line.label, ratePer1000: fixed(perUnit.mul(1000), 2), perUnit: fixed(perUnit, 6),
+        minutes: line.minutes ?? null, crew: line.crew ?? null, rate: line.rate ?? null, costPerBatch: line.costPerBatch ?? null,
+        _perUnit: perUnit,
+      });
+    }
+  } else for (const [key, label] of LABOUR_KEYS) {
     const rate = D(labor[key] ?? 0);
     if (rate.isZero()) continue;
     const perUnit = rate.div(1000);
@@ -425,7 +438,7 @@ function buildLabour(labor = {}) {
     });
   }
   const total = production.plus(qc);
-  return { lines: lines.map(({ _perUnit, ...rest }) => rest), total, production, qc };
+  return { lines: lines.map(({ _perUnit, ...rest }) => rest), total, production, qc, source: labor.source ?? (Array.isArray(labor.lines) && labor.lines.length ? 'lines' : 'bands') };
 }
 
 // ── tiers ──────────────────────────────────────────────────────────────────
@@ -443,12 +456,22 @@ function buildTier(tier, built, coaFee) {
     .plus(overheadPerUnit)
     .plus(coaPerUnit);
 
-  const margin = tier.margin == null || tier.margin === '' ? null : D(tier.margin);
+  // Price either follows a margin, or is set outright — in which case the
+  // margin is read back from it so GP is always visible.
+  let margin = tier.margin == null || tier.margin === '' ? null : D(tier.margin);
   let salePrice = null;
   let extended = null;
   let marginDollars = null;
-  if (margin !== null && margin.lt(1) && margin.gte(0)) {
+  let priceSource = 'margin';
+  const override = tier.priceOverride == null || tier.priceOverride === '' ? null : D(tier.priceOverride);
+  if (override !== null && override.gt(0)) {
+    salePrice = override;
+    margin = cogs.gt(0) ? override.minus(cogs).div(override) : D(0);
+    priceSource = 'set';
+  } else if (margin !== null && margin.lt(1) && margin.gte(0)) {
     salePrice = cogs.div(D(1).minus(margin));
+  }
+  if (salePrice !== null) {
     extended = salePrice.mul(qty);
     marginDollars = salePrice.minus(cogs).mul(qty);
   }
@@ -468,6 +491,13 @@ function buildTier(tier, built, coaFee) {
     salePricePerUnit: salePrice === null ? null : fixed(salePrice, 4),
     extendedTotal: extended === null ? null : fixed(extended, 2),
     marginDollars: marginDollars === null ? null : fixed(marginDollars, 2),
+    gpPerUnit: salePrice === null ? null : fixed(salePrice.minus(cogs), 4),
+    gpPct: salePrice === null || salePrice.isZero() ? null : Number(salePrice.minus(cogs).div(salePrice).mul(100).toFixed(1)),
+    priceSource,
+    laborSource: labour.source,
+    laborPerBatch: fixed(labour.total.mul(qty), 2),
+    // Bulk product is quoted per thousand pieces as well as per piece.
+    per1000: built.product?.isBulk && salePrice !== null ? fixed(salePrice.mul(1000), 2) : null,
     batchCogs: fixed(cogs.mul(qty), 2),
   };
 }

@@ -29,6 +29,7 @@ export interface Contact { name: string; title?: string; email?: string; phone?:
 export interface Address { line1?: string; line2?: string; city?: string; state?: string; postalCode?: string; country?: string }
 
 export interface Customer extends BaseRecord {
+  defaultMargin?: number; laborRateFactor?: number;
   code: string; name: string; status: string; tier: string; industry: string; website: string;
   ownerId: string; paymentTerms: string; creditLimit: number;
   billingAddress: Address; shippingAddress: Address; contacts: Contact[];
@@ -193,13 +194,37 @@ export interface Formula extends BaseRecord {
   ownerId: string; approvedBy: string; approvedAt: string | null; notes: string; tags: string[];
 }
 
+export interface LaborLine { label: string; perUnit: number; minutes?: number; crew?: number; rate?: number; costPerBatch?: number; workCenter?: string }
+
 export interface TierLabor {
   blendingPer1000?: number; fillPer1000?: number; encapsulationPer1000?: number;
   depositPer1000?: number; compressionPer1000?: number; packagingPer1000?: number;
   qcPctOfProduction?: number;
+  // Explicit labour lines (from the routing or actual batches) override the bands.
+  lines?: LaborLine[]; source?: 'routing' | 'actual' | 'bands' | 'manual';
 }
 
-export interface QuoteTierInput { qty: number; labor: TierLabor; overheadRate: number; margin: number | null }
+export type LaborMode = 'routing' | 'actual' | 'bands' | 'manual';
+
+export interface QuoteTierInput {
+  qty: number; labor: TierLabor; overheadRate: number; margin: number | null;
+  laborMode?: LaborMode;
+  // A price typed in directly; the margin is read back from it.
+  priceOverride?: number | null;
+}
+
+export interface LabourOptions {
+  qty: number; bulkAllowed: boolean;
+  routing: { source: 'routing'; routingId: string; routingCode: string; qty: number; minutes: number; totalPerBatch: number; perUnit: number; lines: LaborLine[] } | null;
+  actual: { source: 'actual'; batches: number; units: number; cost: number; perUnit: number; minutesPerUnit: number; lastBatch: string } | null;
+  bands: TierLabor;
+}
+
+export interface OrderTemplate extends BaseRecord {
+  name: string; customerId: string; projectId: string; formulaId: string; quoteId: string;
+  qty: number; unitPrice: number; bulk: boolean; leadTimeWeeks: number; notes: string;
+  timesUsed: number; lastUsedAt: string | null; active: boolean; tags: string[];
+}
 
 export interface ComplianceFlag {
   check: string; status: 'PASS' | 'WARN' | 'BLOCK'; detail: string; authority?: string;
@@ -214,11 +239,12 @@ export interface CostedLine {
 
 export interface CostedTier {
   qty: number;
-  laborLines: { label: string; ratePer1000: string; perUnit: string }[];
-  laborPerUnit: string; overheadRate: number; overheadPerUnit: string; coaPerUnit: string;
+  laborLines: { label: string; ratePer1000: string; perUnit: string; minutes?: number | null; crew?: number | null; rate?: number | null; costPerBatch?: number | null }[];
+  laborPerUnit: string; laborPerBatch?: string; laborSource?: string; overheadRate: number; overheadPerUnit: string; coaPerUnit: string;
   rawMaterialsPerUnit: string; packagingPerUnit: string; servicesPerUnit: string;
   cogsPerUnit: string; margin: number | null;
   salePricePerUnit: string | null; extendedTotal: string | null; marginDollars: string | null;
+  gpPerUnit?: string | null; gpPct?: number | null; priceSource?: 'margin' | 'set'; per1000?: string | null;
   batchCogs: string;
 }
 

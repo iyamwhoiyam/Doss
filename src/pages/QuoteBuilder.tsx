@@ -8,14 +8,14 @@ import {
   Badge, Card, CardHead, CopyButton, Field, Flag, KeyValue, Loading, Modal,
   NumberInput, Section, StackBar, StatusBadge, Tabs, TextInput,
 } from '../components/ui';
-import { api, useRecord } from '../lib/api';
+import { api, qs, useRecord } from '../lib/api';
 import { useUi } from '../lib/ui';
 import { useSession } from '../lib/session';
 import { useViewing } from '../lib/realtime';
 import { useCustomers, useFormulas, useUsers } from '../lib/lookups';
 import { compact, date, mg, money, number, percent, unitMoney } from '../lib/format';
 import { QUOTE_DEFAULTS, QUOTE_STATUS, overheadRateForQty } from '@shared/domain';
-import type { Formula, Quote, QuoteResult, QuoteTierInput } from '../lib/types';
+import type { Formula, LaborMode, LabourOptions, Quote, QuoteResult, QuoteTierInput } from '../lib/types';
 
 const COST_COLORS = {
   raw: 'var(--tone-info-fg)',
@@ -73,6 +73,7 @@ export function QuoteBuilder() {
     setTiers(quantities.map((qty, index) => ({
       qty,
       labor: suggestLabourFor(formula.format, qty),
+      laborMode: 'routing',
       overheadRate: overheadRateForQty(qty),
       margin: margins[index],
     })));
@@ -103,6 +104,7 @@ export function QuoteBuilder() {
     setTiers((current) => [...current, {
       qty,
       labor: suggestLabourFor(formula?.format ?? 'capsule', qty),
+      laborMode: last?.laborMode ?? 'routing',
       overheadRate: overheadRateForQty(qty),
       margin: last?.margin ?? 0.4,
     }]);
@@ -230,6 +232,7 @@ export function QuoteBuilder() {
             {' '}{customers.name(quote?.customerId || formula?.customerId)} ·
             {' '}<Link to={`/formulations/${formulaId}`}>{formulas.get(formulaId)?.code ?? 'formula'}</Link>
             {quote?.validUntil && ` · valid until ${date(quote.validUntil)}`}
+            {formula?.isBulk && <> · <Badge tone="warning">Bulk — per 1,000 pieces</Badge></>}
           </>
         }
         actions={
@@ -290,9 +293,10 @@ export function QuoteBuilder() {
                         <th className="num-cell">Overhead</th>
                         <th className="num-cell">COA/unit</th>
                         <th className="num-cell">COGS/unit</th>
-                        <th className="num-cell">Margin</th>
-                        <th className="num-cell">Sale price</th>
-                        <th className="num-cell">Extended</th>
+                        <th className="num-cell">Margin %</th>
+                        <th className="num-cell">Price/unit</th>
+                        <th className="num-cell">GP/unit</th>
+                        <th className="num-cell">{formula?.isBulk ? 'Per 1,000' : 'Extended'}</th>
                         <th />
                       </tr>
                     </thead>
@@ -310,9 +314,12 @@ export function QuoteBuilder() {
                               />
                             </td>
                             <td className="num-cell">
-                              <button type="button" className="link-btn mono" onClick={() => setLabourFor(index)} disabled={!writable}>
+                              <button type="button" className="link-btn mono" onClick={() => setLabourFor(index)} disabled={!writable} title="Choose where the labour figure comes from">
                                 {computedTier ? unitMoney(computedTier.laborPerUnit) : '—'}
                               </button>
+                              <div className="cell-sub" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                {({ routing: 'routing', actual: 'actual', bands: 'benchmark', manual: 'manual', lines: 'routing' } as Record<string, string>)[computedTier?.laborSource ?? tier.laborMode ?? 'bands']}
+                              </div>
                             </td>
                             <td className="num-cell">
                               <div className="row-tight" style={{ justifyContent: 'flex-end' }}>
@@ -325,16 +332,30 @@ export function QuoteBuilder() {
                             <td className="num-cell editable">
                               <NumberInput
                                 className="input input-sm input-mono right"
-                                value={tier.margin === null ? '' : Number((tier.margin * 100).toFixed(1))}
+                                value={computedTier?.margin != null ? Number((computedTier.margin * 100).toFixed(1)) : tier.margin === null ? '' : Number((tier.margin * 100).toFixed(1))}
                                 disabled={!writable}
                                 step="0.5"
-                                onChange={(value) => patchTier(index, { margin: Number.isFinite(value) ? value / 100 : null })}
+                                onChange={(value) => patchTier(index, { margin: Number.isFinite(value) ? value / 100 : null, priceOverride: null })}
                               />
                             </td>
-                            <td className="num-cell strong">
-                              {computedTier?.salePricePerUnit ? unitMoney(computedTier.salePricePerUnit) : <span className="faint">set a margin</span>}
+                            <td className="num-cell editable" title={tier.priceOverride ? 'Price set by hand — the margin follows it' : 'Price from the margin — type here to set it directly'}>
+                              <NumberInput
+                                className={`input input-sm input-mono right${tier.priceOverride ? ' input-set' : ''}`}
+                                value={tier.priceOverride ?? (computedTier?.salePricePerUnit ? Number(Number(computedTier.salePricePerUnit).toFixed(4)) : '')}
+                                disabled={!writable}
+                                step="0.01"
+                                dp={4}
+                                onChange={(value) => patchTier(index, { priceOverride: Number.isFinite(value) && value > 0 ? value : null })}
+                              />
                             </td>
-                            <td className="num-cell">{computedTier?.extendedTotal ? money(computedTier.extendedTotal, 0) : '—'}</td>
+                            <td className="num-cell">
+                              {computedTier?.gpPerUnit != null ? (
+                                <span className="tone-text" data-tone={(computedTier.gpPct ?? 0) >= 30 ? 'success' : (computedTier.gpPct ?? 0) >= 15 ? 'warning' : 'danger'}>
+                                  {unitMoney(computedTier.gpPerUnit)} <span className="cell-sub">({computedTier.gpPct}%)</span>
+                                </span>
+                              ) : <span className="faint">—</span>}
+                            </td>
+                            <td className="num-cell">{formula?.isBulk ? (computedTier?.per1000 ? money(computedTier.per1000, 2) : '—') : (computedTier?.extendedTotal ? money(computedTier.extendedTotal, 0) : '—')}</td>
                             <td className="tight">
                               {writable && tiers.length > 1 && (
                                 <button type="button" className="btn btn-ghost btn-sm btn-icon" onClick={() => removeTier(index)} aria-label="Remove tier">
@@ -350,7 +371,7 @@ export function QuoteBuilder() {
                 </div>
                 <div className="card-foot row-wrap">
                   <span className="cell-sub">
-                    Sale price = COGS ÷ (1 − margin). Overhead steps down with volume; labour and the COA fee amortise across the tier.
+                    Type a margin and the price follows, or type the price and the margin and GP follow. Labour comes from the routing's real minutes, crew and rates unless you choose otherwise. Overhead steps down with volume; the COA fee amortises across the tier.{formula?.isBulk ? ' Bulk product: packaging and bottling are left out and the price is also shown per 1,000 pieces.' : ''}
                   </span>
                   <span className="spacer" />
                   <Field label="COA fee">
@@ -438,6 +459,37 @@ export function QuoteBuilder() {
                 )}
               </div>
             )}
+
+            {tab === 'build' && result && (() => {
+              const headline = result.tiers.find((t) => t.salePricePerUnit !== null) ?? result.tiers[0];
+              if (!headline?.laborLines?.length) return null;
+              const real = headline.laborLines.some((l) => l.minutes != null);
+              return (
+                <Card style={{ marginTop: 'var(--s-4)' }}>
+                  <CardHead
+                    title={`Labour · ${number(headline.qty)} units`}
+                    subtitle={real ? 'Real minutes from the routing: setup plus run time at the line rate, times crew, times the hourly rate' : `Per-thousand ${headline.laborSource === 'actual' ? 'actuals' : 'benchmark rates'}`}
+                    icon="clock"
+                  />
+                  <div className="table-wrap">
+                    <table className="data">
+                      <thead><tr><th>Operation</th>{real && <><th className="num-cell">Minutes</th><th className="num-cell">Crew</th><th className="num-cell">$/h</th><th className="num-cell">$/batch</th></>}<th className="num-cell">$/1,000</th><th className="num-cell">$/unit</th></tr></thead>
+                      <tbody>
+                        {headline.laborLines.map((line, i) => (
+                          <tr key={i}>
+                            <td>{line.label}</td>
+                            {real && <><td className="num-cell">{line.minutes != null ? number(line.minutes, 0) : '—'}</td><td className="num-cell">{line.crew ?? '—'}</td><td className="num-cell">{line.rate ? money(line.rate, 0) : '—'}</td><td className="num-cell">{line.costPerBatch != null ? money(line.costPerBatch, 0) : '—'}</td></>}
+                            <td className="num-cell">{money(line.ratePer1000, 2)}</td>
+                            <td className="num-cell">{unitMoney(line.perUnit)}</td>
+                          </tr>
+                        ))}
+                        <tr><td className="strong">Total labour</td>{real && <td colSpan={3} />}{real && <td className="num-cell strong">{money(headline.laborPerBatch ?? 0, 0)}</td>}<td className="num-cell strong">{money(Number(headline.laborPerUnit) * 1000, 2)}</td><td className="num-cell strong">{unitMoney(headline.laborPerUnit)}</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              );
+            })()}
 
             {tab === 'compliance' && (
               <Card>
@@ -539,7 +591,9 @@ export function QuoteBuilder() {
         <LabourModal
           tier={tiers[labourFor]}
           onClose={() => setLabourFor(null)}
-          onSave={(labor) => { patchTier(labourFor, { labor }); setLabourFor(null); }}
+          formulaId={formulaId}
+          bulk={Boolean(formula?.isBulk)}
+          onSave={(patch) => { patchTier(labourFor, patch); setLabourFor(null); }}
         />
       )}
     </div>
@@ -567,54 +621,112 @@ function suggestLabourFor(format: string, qty: number): QuoteTierInput['labor'] 
   return labor;
 }
 
-function LabourModal({ tier, onClose, onSave }: {
-  tier: QuoteTierInput; onClose: () => void; onSave: (labor: QuoteTierInput['labor']) => void;
+function LabourModal({ tier, formulaId, bulk, onClose, onSave }: {
+  tier: QuoteTierInput; formulaId: string; bulk: boolean; onClose: () => void; onSave: (patch: Partial<QuoteTierInput>) => void;
 }) {
+  const [mode, setMode] = useState<LaborMode>(tier.laborMode ?? 'routing');
   const [labor, setLabor] = useState({ ...tier.labor });
+  const { data: options } = useQuery<LabourOptions>({
+    queryKey: ['labour', formulaId, tier.qty, bulk],
+    queryFn: () => api.get<LabourOptions>(`/commerce/formulas/${formulaId}/labour${qs({ qty: tier.qty, bulk })}`),
+    enabled: Boolean(formulaId),
+  });
   const production = LABOUR_FIELDS.reduce((sum, field) => sum + Number(labor[field.key] ?? 0), 0);
   const qc = production * Number(labor.qcPctOfProduction ?? QUOTE_DEFAULTS.qcPctOfProduction);
+  const routing = options?.routing ?? null;
+  const actual = options?.actual ?? null;
+  const modes: { value: LaborMode; label: string; sub: string; disabled?: boolean }[] = [
+    { value: 'routing', label: 'From the routing', sub: routing ? `${routing.routingCode} · ${routing.minutes.toLocaleString()} min at ${number(tier.qty)} units · ${unitMoney(routing.perUnit)}/unit` : 'No routing for this format yet — add one under Make › Routings', disabled: !routing },
+    { value: 'actual', label: 'From finished batches', sub: actual ? `Average of ${actual.batches} batch${actual.batches === 1 ? '' : 'es'} (last ${actual.lastBatch}) · ${unitMoney(actual.perUnit)}/unit` : 'No finished batches of this formula with labour clocked yet', disabled: !actual },
+    { value: 'bands', label: 'Benchmark bands', sub: 'Industry per-thousand rates for the format, scaled by volume' },
+    { value: 'manual', label: 'Type it in', sub: 'Per-thousand rates you set by hand' },
+  ];
+  const apply = () => {
+    if (mode === 'manual') onSave({ laborMode: 'manual', labor: { ...labor, source: 'manual' } });
+    else onSave({ laborMode: mode });
+  };
 
   return (
     <Modal
       open
       onClose={onClose}
-      title={`Labour at ${number(tier.qty)} units`}
-      footer={
+      title={`Labour for ${number(tier.qty)} units`}
+      large
+      footer={(
         <>
           <button type="button" className="btn" onClick={onClose}>Cancel</button>
-          <button type="button" className="btn btn-primary" onClick={() => onSave(labor)}>Apply</button>
+          <button type="button" className="btn btn-primary" onClick={apply}>Apply</button>
         </>
-      }
+      )}
     >
       <div className="col">
-        <Flag
-          tone="warning"
-          title="These are benchmark rates"
-          detail="Load the MASTER BID tier page under Admin to replace them with Enova's confirmed rates. Until then every quote carries this caveat."
-        />
-        {LABOUR_FIELDS.map((field) => (
-          <Field key={field.key} label={`${field.label} ($ per 1,000 units)`}>
-            <NumberInput
-              value={labor[field.key] ?? 0}
-              step="0.5"
-              onChange={(value) => setLabor((current) => ({ ...current, [field.key]: value }))}
-            />
-          </Field>
-        ))}
-        <Field label="QC / inspection (% of production labour)">
-          <NumberInput
-            value={Number(((labor.qcPctOfProduction ?? 0.12) * 100).toFixed(1))}
-            step="1"
-            onChange={(value) => setLabor((current) => ({ ...current, qcPctOfProduction: value / 100 }))}
-          />
-        </Field>
-        <KeyValue
-          items={[
-            { label: 'Production labour', value: `${unitMoney(production / 1000)} per unit` },
-            { label: 'QC / inspection', value: `${unitMoney(qc / 1000)} per unit` },
-            { label: 'Total labour', value: `${unitMoney((production + qc) / 1000)} per unit` },
-          ]}
-        />
+        <div className="col-tight">
+          {modes.map((m) => (
+            <label key={m.value} className={`list-row${m.disabled ? ' faint' : ''}`} style={{ cursor: m.disabled ? 'not-allowed' : 'pointer', alignItems: 'flex-start' }}>
+              <input type="radio" name="labour-mode" checked={mode === m.value} disabled={m.disabled} onChange={() => setMode(m.value)} style={{ marginTop: 3 }} />
+              <span className="col-tight" style={{ gap: 2 }}>
+                <span className="cell-primary">{m.label}</span>
+                <span className="cell-sub">{m.sub}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+
+        {mode === 'routing' && routing && (
+          <div className="table-wrap">
+            <table className="data">
+              <thead><tr><th>Operation</th><th>Work center</th><th className="num-cell">Minutes</th><th className="num-cell">Crew</th><th className="num-cell">$/h</th><th className="num-cell">$/batch</th><th className="num-cell">$/unit</th></tr></thead>
+              <tbody>
+                {routing.lines.map((line, i) => (
+                  <tr key={i}>
+                    <td>{line.label}</td>
+                    <td className="cell-sub">{line.workCenter || '—'}</td>
+                    <td className="num-cell">{number(line.minutes ?? 0, 0)}</td>
+                    <td className="num-cell">{line.crew ?? '—'}</td>
+                    <td className="num-cell">{line.rate ? money(line.rate, 0) : '—'}</td>
+                    <td className="num-cell">{money(line.costPerBatch ?? 0, 0)}</td>
+                    <td className="num-cell">{unitMoney(line.perUnit)}</td>
+                  </tr>
+                ))}
+                <tr><td colSpan={5} className="strong">Total{bulk ? ' (bulk — packaging operations excluded)' : ''}</td><td className="num-cell strong">{money(routing.totalPerBatch, 0)}</td><td className="num-cell strong">{unitMoney(routing.perUnit)}</td></tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {mode === 'actual' && actual && (
+          <div className="flag" data-tone="info">
+            <span className="flag-mark"><Icon name="factory" size={14} /></span>
+            <div>
+              <div className="flag-title">{unitMoney(actual.perUnit)} per unit · {number(actual.minutesPerUnit * 1000, 1)} min per 1,000</div>
+              <div className="flag-detail">{number(actual.units)} units across {actual.batches} finished batch{actual.batches === 1 ? '' : 'es'}, {money(actual.cost, 0)} of clocked labour. This is what the floor actually spent, not a standard.</div>
+            </div>
+          </div>
+        )}
+
+        {mode === 'manual' && (
+          <div className="grid grid-2">
+            {LABOUR_FIELDS.map((field) => (
+              <Field key={field.key} label={`${field.label} ($ per 1,000)`}>
+                <NumberInput
+                  className="input input-mono right"
+                  value={Number(labor[field.key] ?? 0)}
+                  onChange={(value) => setLabor((current) => ({ ...current, [field.key]: value }))}
+                />
+              </Field>
+            ))}
+            <Field label="QC / inspection (% of production labour)">
+              <NumberInput
+                className="input input-mono right"
+                value={Number(((labor.qcPctOfProduction ?? 0.12) * 100).toFixed(1))}
+                onChange={(value) => setLabor((current) => ({ ...current, qcPctOfProduction: value / 100 }))}
+              />
+            </Field>
+            <div className="cell-sub" style={{ alignSelf: 'flex-end' }}>
+              Production {money(production, 2)} + QC {money(qc, 2)} = <strong>{money(production + qc, 2)} per 1,000</strong>
+            </div>
+          </div>
+        )}
       </div>
     </Modal>
   );

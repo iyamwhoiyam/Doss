@@ -2,6 +2,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { PageHeader } from '../components/Shell';
+import { Icon } from '../components/Icon';
 import { Badge, Card, CardHead, KeyValue, Loading, Meter, Section, Select, StatusBadge } from '../components/ui';
 import { api, useList, useRecord } from '../lib/api';
 import { useUi } from '../lib/ui';
@@ -15,7 +16,7 @@ import type { SalesOrder, Shipment, WorkOrder } from '../lib/types';
 export function OrderDetail() {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
-  const { error } = useUi();
+  const { error, success } = useUi();
   const { can } = useSession();
   const customers = useCustomers();
   const users = useUsers();
@@ -60,12 +61,27 @@ export function OrderDetail() {
         }
         actions={
           can('orders.write') && (
-            <Select
-              value={order.status}
-              onChange={setStatus}
-              options={SO_STATUS.map((s) => ({ value: s.value, label: s.label }))}
-              style={{ width: 190 }}
-            />
+            <>
+              <button
+                type="button"
+                className="btn"
+                title="Keep this product, quantity and price as a canned job for the customer, so the next PO is one click"
+                onClick={async () => {
+                  try {
+                    const r = await api.post<{ template: { name: string }; created: boolean }>(`/commerce/templates/from-order/${order.id}`);
+                    success(r.created ? 'Saved as a repeat order' : 'Already saved as a repeat order', `${r.template.name} — find it on the customer's page`);
+                  } catch (err) { error(err); }
+                }}
+              >
+                <Icon name="refresh" size={13} /> Save as repeat order
+              </button>
+              <Select
+                value={order.status}
+                onChange={setStatus}
+                options={SO_STATUS.map((s) => ({ value: s.value, label: s.label }))}
+                style={{ width: 190 }}
+              />
+            </>
           )
         }
       />
